@@ -1,0 +1,168 @@
+datasets:
+  data:
+    - muon
+    - electron
+    - muon_electron
+  mc:
+    - dy_nlo
+    - wz
+    - tt_semileptonic
+object_selection:
+  muons:
+    field: events.Muon
+    add_cut:
+      is_loose:
+        - events.Muon.pt > 5
+        - np.abs(events.Muon.eta) < 2.4
+        - np.abs(events.Muon.dxy) < 0.5
+        - np.abs(events.Muon.dz) < 1
+        - events.Muon.isGlobal | events.Muon.isTracker
+      is_relaxed:
+        - objects['muons'].is_loose
+        - np.abs(events.Muon.sip3d) < 4
+      is_tight:
+        - objects['muons'].is_loose
+        - objects['muons'].is_relaxed
+        - events.Muon.isPFcand | ((events.Muon.highPtId > 0) & (events.Muon.pt > 200))
+  electrons:
+    field: events.Electron
+    add_cut: 
+      is_loose:
+        - events.Electron.pt > 7
+        - np.abs(events.Electron.eta) < 2.5
+        - np.abs(events.Electron.dxy) < 0.5
+        - np.abs(events.Electron.dz) < 1
+      is_relaxed:
+        - objects['electrons'].is_loose
+        - np.abs(events.Electron.sip3d) < 4
+      is_tight:
+        - objects['electrons'].is_loose
+        - objects['electrons'].is_relaxed
+        - working_points.electron_id(events, 'bdt')
+    cuts:
+      - delta_r_higher(events.Electron, objects['muons'], 0.05)
+  fsr_photons:
+    field: events.FsrPhoton
+    cuts:
+      - events.FsrPhoton.pt > 2
+      - np.abs(events.FsrPhoton.eta) < 2.4
+      - events.FsrPhoton.relIso03 < 1.8
+  leptons:
+    field: select_zzto4l_leptons
+  zcandidates:
+    field: select_zcandidates 
+    add_cut:
+      is_ossf:
+        - objects['zcandidates'].l1.pdgId == -objects['zcandidates'].l2.pdgId
+      is_sr:
+        - objects['zcandidates'].is_ossf
+        - (1*objects['zcandidates'].l1.is_tight + 1*objects['zcandidates'].l2.is_tight) == 2
+    cuts: 
+      - objects['zcandidates'].is_sr
+      - np.abs(objects['zcandidates'].p4.mass - 91.1876) < 7
+      - ((objects['zcandidates'].l1.p4.pt > 10) & (objects['zcandidates'].l2.p4.pt > 20)) | ((objects['zcandidates'].l1.p4.pt > 20) & (objects['zcandidates'].l2.p4.pt > 10))
+  best_zcandidates:
+    field: select_best_zcandidate
+  other_relaxed_leptons:
+    field: select_other_relaxed_leptons
+    add_cut:
+      is_barrel:
+        - ak.where(np.abs(objects['other_relaxed_leptons'].pdgId) == 11, np.abs(objects['other_relaxed_leptons'].eta) < 1.479, np.abs(objects['other_relaxed_leptons'].eta) < 1.2)
+event_selection:
+  hlt_paths:
+    - SingleMu
+    - DiMu
+    - TriMu
+    - SingleEle
+    - DiEle
+    - MuEle
+  selections:
+    trigger: get_zzto4l_trigger_mask(events, hlt_paths, dataset, year)
+    lumimask: get_lumi_mask(events, year)
+    atleast_one_goodvertex: events.PV.npvsGood > 0
+    met_filters: get_metfilters_mask(events, year)
+    met_25: events.PuppiMET.pt < 25
+    one_relaxed_lepton: ak.num(objects['other_relaxed_leptons']) == 1
+    atleast_one_zcandidate: ak.num(objects['zcandidates']) >= 1
+    ele_flavor: ak.all(np.abs(objects['other_relaxed_leptons'].pdgId) == 11, axis=1)
+    mu_flavor: ak.all(np.abs(objects['other_relaxed_leptons'].pdgId) == 13, axis=1)
+  categories:
+    electron:
+      - trigger
+      - lumimask
+      - atleast_one_goodvertex
+      - met_filters
+      - met_25
+      - ele_flavor
+      - atleast_one_zcandidate
+      - one_relaxed_lepton
+    muon:
+      - trigger
+      - lumimask
+      - atleast_one_goodvertex
+      - met_filters
+      - met_25
+      - mu_flavor
+      - atleast_one_zcandidate
+      - one_relaxed_lepton
+corrections:
+  objects:
+    - jets
+    - muons
+    - electrons
+  event_weights:
+    genWeight: true
+    pileupWeight: true
+    partonshowerWeight: false
+    lhepdfWeight: false
+    lhescaleWeight: false
+    nnlopsWeight: false
+    electron:
+      - id: false
+      - reco: true
+      - trigger: false
+histogram_config:
+  axes:
+    probe_lepton_pt:
+      type: Variable
+      edges:
+        - 5
+        - 7
+        - 10
+        - 20
+        - 30
+        - 40
+        - 50
+        - 80
+      label: $p_T(\ell)$ [GeV]
+      expression: objects['other_relaxed_leptons'].pt
+    probe_lepton_eta:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 2.5
+      label: $|\eta(\ell)|$
+      expression: np.abs(objects['other_relaxed_leptons'].eta)
+    is_barrel_lepton:
+      type: Boolean
+      label: is barrel $\ell$
+      expression: objects['other_relaxed_leptons'].is_barrel
+    is_passing_lepton:
+      type: Boolean
+      label: $\ell$ pass 
+      expression: objects['other_relaxed_leptons'].pass_selection
+    n_missing_hits:
+      type: Integer
+      start: 0
+      stop: 10
+      label: n_missing_hits
+      expression: objects['other_relaxed_leptons'].lostHits
+  layout:
+    probe_lepton:
+      - probe_lepton_pt
+      - probe_lepton_eta
+      - n_missing_hits
+      - is_passing_lepton
+      - is_barrel_lepton
+  add_syst_axis: true
+  add_weight: true

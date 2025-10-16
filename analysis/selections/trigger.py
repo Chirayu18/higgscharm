@@ -2,7 +2,7 @@ import yaml
 import numpy as np
 import awkward as ak
 import importlib.resources
-from analysis.filesets.utils import get_dataset_key
+from analysis.filesets.utils import get_dataset_name
 
 
 def get_hltpaths_from_flag(flag, year):
@@ -27,7 +27,7 @@ def trigger_from_flag(events, flag, year):
 
 def zzto4l_trigger(events, hlt_paths, dataset, year):
     nevents = len(events)
-    dataset_key = get_dataset_key(dataset)
+    dataset_name = get_dataset_name(dataset)
     # compute all trigger masks based on the flags in hlt_paths
     trigger_flags = {}
     for flag in hlt_paths:
@@ -46,12 +46,12 @@ def zzto4l_trigger(events, hlt_paths, dataset, year):
     pd_trigger_mask = (
         (np.zeros(nevents, dtype="bool"))
         | (
-            ((dataset_key == "EGamma") * np.ones(nevents, dtype=bool))
+            ((dataset_name == "EGamma") * np.ones(nevents, dtype=bool))
             & (trigger_flags["DiEle"] | trigger_flags["TriEle"])
         )
         | (
             (
-                ((dataset_key == "Muon") or (dataset_key == "DoubleMuon"))
+                ((dataset_name == "Muon") or (dataset_name == "DoubleMuon"))
                 * np.ones(nevents, dtype=bool)
             )
             & (trigger_flags["DiMu"] | trigger_flags["TriMu"])
@@ -59,7 +59,7 @@ def zzto4l_trigger(events, hlt_paths, dataset, year):
             & ~trigger_flags["TriEle"]
         )
         | (
-            ((dataset_key == "MuonEG") * np.ones(nevents, dtype=bool))
+            ((dataset_name == "MuonEG") * np.ones(nevents, dtype=bool))
             & trigger_flags["MuEle"]
             & ~trigger_flags["DiMu"]
             & ~trigger_flags["TriMu"]
@@ -67,7 +67,7 @@ def zzto4l_trigger(events, hlt_paths, dataset, year):
             & ~trigger_flags["TriEle"]
         )
         | (
-            ((dataset_key == "EGamma") * np.ones(nevents, dtype=bool))
+            ((dataset_name == "EGamma") * np.ones(nevents, dtype=bool))
             & trigger_flags["SingleEle"]
             & ~trigger_flags["MuEle"]
             & ~trigger_flags["DiMu"]
@@ -77,7 +77,7 @@ def zzto4l_trigger(events, hlt_paths, dataset, year):
         )
         | (
             (
-                ((dataset_key == "Muon") or (dataset_key == "SingleMuon"))
+                ((dataset_name == "Muon") or (dataset_name == "SingleMuon"))
                 * np.ones(nevents, dtype=bool)
             )
             & trigger_flags["SingleMu"]
@@ -93,7 +93,7 @@ def zzto4l_trigger(events, hlt_paths, dataset, year):
 
 
 def trigger_mask(events, hlt_paths, dataset, year):
-    dataset_key = get_dataset_key(dataset)
+    dataset_name = get_dataset_name(dataset)
     # compute all trigger masks based on the flags in hlt_paths
     trigger_flags = {}
     for dataset_flags in hlt_paths.values():
@@ -121,7 +121,7 @@ def trigger_mask(events, hlt_paths, dataset, year):
             mask = mask & ~other_masks
         dataset_masks[dataset] = mask
 
-    return dataset_masks.get(dataset_key, all_combined_mask)
+    return dataset_masks.get(dataset_name, all_combined_mask)
 
 
 def trigger_match(leptons, trigobjs, hlt_path):

@@ -17,6 +17,12 @@ if __name__ == "__main__":
         type=str,
         default="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/coffeateam/coffea-dask:latest-py3.10",
     )
+    parser.add_argument(
+        "--samples",
+        nargs="*",
+        type=str,
+        help="(Optional) List of samples to use. If omitted, all available samples will be used",
+    )
     args = parser.parse_args()
 
     try:
@@ -31,5 +37,6 @@ if __name__ == "__main__":
         cmd = f"python3 analysis/filesets/build_sites.py --year {args.year}"
         subprocess.run(cmd, shell=True)
 
-    cmd = f"singularity exec -B /afs -B /cvmfs {args.image} python3 analysis/filesets/make_filesets.py --year {args.year}"
+    samples_str = " ".join(args.samples) if args.samples else ""
+    cmd = f"singularity exec -B /afs -B /cvmfs {args.image} python3 analysis/filesets/make_filesets.py --year {args.year} --samples {samples_str}"
     subprocess.run(cmd, shell=True)

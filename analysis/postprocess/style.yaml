@@ -1,9 +1,9 @@
 rcParams:
   font.size: 18
   axes.titlesize: 28
-  axes.labelsize: 23
-  xtick.labelsize: 13
-  ytick.labelsize: 13
+  axes.labelsize: 25
+  xtick.labelsize: 16
+  ytick.labelsize: 16
   lines.markersize: 30
   legend.fontsize: 16
   xtick.minor.width: 1
@@ -29,6 +29,8 @@ data_hist_kwargs:
   elinewidth: 1
   yerr: true
   xerr: true
+signal_hist_kwargs:
+  linewidth: 1.5
 ratio_error_kwargs:
   fmt: ko
   elinewidth: 1
@@ -42,14 +44,3 @@ uncert_band_kwargs:
   hatch: ////
   linewidth: 0
   label: Stat + Syst unc.
-colors:
-  - "#3f90da"
-  - "#ffa90e"
-  - "#bd1f01"
-  - "#94a4a2"
-  - "#832db6"
-  - "#a96b59"
-  - "#e76300"
-  - "#b9ac70"
-  - "#717581"
-  - "#92dadd"

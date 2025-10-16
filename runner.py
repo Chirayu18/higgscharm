@@ -1,155 +1,7 @@
 import argparse
 import subprocess
 from pathlib import Path
-
-
-MC_DATASETS = {
-    "semilep_ttbar": ["TTto2L2Nu"],
-    "ttbar": ["TTto2L2Nu", "TTto2L2Nu-ext", "TTto4Q", "TTto4Q-ext", "TTtoLNu2Q", "TTtoLNu2Q-ext"],
-    "ttbar_noExt": ["TTto2L2Nu", "TTto4Q", "TTtoLNu2Q"],
-    "singletop": [
-        "TWminusto2L2Nu",
-        "TWminusto2L2Nu-ext",
-        "TbarWplusto2L2Nu",
-        "TbarWplusto2L2Nu-ext",
-        "TWminustoLNu2Q",
-        "TWminustoLNu2Q-ext",
-        "TbarWplusto4Q",
-        "TbarWplusto4Q-ext",
-        "TbarWplustoLNu2Q",
-        "TbarWplustoLNu2Q-ext",
-        "TWminusto4Q",
-        "TWminusto4Q-ext",
-        "TbarBQ",
-        "TBbarQ",
-        "TbarQto2Q",
-        "TbarQtoLNu",
-        "TQbarto2Q",
-        "TQbartoLNu",
-        "TbarBtoLminusNuB",
-        "TBbartoLplusNuBbar",
-    ],
-    "singletop_noExt": [
-        "TWminusto2L2Nu",
-        "TbarWplusto2L2Nu",
-        "TWminustoLNu2Q",
-        "TbarWplusto4Q",
-        "TbarWplustoLNu2Q",
-        "TWminusto4Q",
-        "TbarBQ",
-        "TBbarQ",
-        "TbarQto2Q",
-        "TbarQtoLNu",
-        "TQbarto2Q",
-        "TQbartoLNu",
-        "TbarBtoLminusNuB",
-        "TBbartoLplusNuBbar",
-    ],
-    "vjets": ["WtoLNu_2Jets"],
-    "diboson": ["WW", "WZ", "ZZ"],
-    "WG": [
-        "WGtoLNuG_PTG10to100",
-        "WGtoLNuG_PTG100to200",
-        "WGtoLNuG_PTG200to400",
-        "WGtoLNuG_PTG400to600",
-        "WGtoLNuG_PTG600",
-        ],
-    "dyjets_50": ["DYto2L_2Jets_50"],
-    "dyjets_10to50": ["DYto2L_2Jets_10to50"],
-    "dyjets": ["DYto2L_2Jets_50", "DYto2L_2Jets_10to50"],
-    "signalHWW": ["signalHWW"],
-    "higgs": [
-        "bbH_Hto2Zto4L",
-        "GluGluHtoZZto4L",
-        "TTH_Hto2Z",
-        "VBFHto2Zto4L",
-        "WminusH_Hto2Zto4L",
-        "WplusH_Hto2Zto4L",
-        "ZHto2Zto4L",
-    ],
-    "ggtozz": [
-        "GluGluToContinto2Zto2E2Mu",
-        "GluGluToContinto2Zto2E2Tau",
-        "GluGluToContinto2Zto2Mu2Tau",
-        "GluGlutoContinto2Zto4E",
-        "GluGlutoContinto2Zto4Mu",
-        "GluGlutoContinto2Zto4Tau",
-    ],
-    "qqtozz": ["ZZto4L"],
-    "wz": ["WZto3LNu"],
-    "triboson": ["ZZZ", "WZZ", "WWZ"],
-    "tt_bosons": ["TTWW", "TTZZ", "TTZ"],
-}
-PD_DATASETS = {
-    "Muon": {
-        "2022preEE": ["MuonC", "MuonD"],
-        "2022postEE": ["MuonE", "MuonF", "MuonG"],
-        "2023preBPix": [
-            "Muon0v1C",
-            "Muon0v2C",
-            "Muon0v3C",
-            "Muon0v4C",
-            "Muon1v1C",
-            "Muon1v2C",
-            "Muon1v3C",
-            "Muon1v4C",
-        ],
-        "2023postBPix": ["Muon0v1D", "Muon0v2D", "Muon1v1D", "Muon1v2D"],
-    },
-    "SingleMuon": {
-        "2022preEE": ["SingleMuonC"],
-        "2022postEE": [],
-        "2023preBPix": [],
-        "2023postBPix": [],
-    },
-    "DoubleMuon": {
-        "2022preEE": ["DoubleMuonC"],
-        "2022postEE": [],
-        "2023preBPix": [],
-        "2023postBPix": [],
-    },
-    "EGamma": {
-        "2022preEE": ["EGammaC", "EGammaD"],
-        "2022postEE": ["EGammaE", "EGammaF", "EGammaG"],
-        "2023preBPix": [
-            "EGamma0v1C",
-            "EGamma0v2C",
-            "EGamma0v3C",
-            "EGamma0v4C",
-            "EGamma1v1C",
-            "EGamma1v2C",
-            "EGamma1v3C",
-            "EGamma1v4C",
-        ],
-        "2023postBPix": ["EGamma0v1D", "EGamma0v2D", "EGamma1v1D", "EGamma1v2D"],
-    },
-    "MuonEG": {
-        "2022preEE": ["MuonEGC", "MuonEGD"],
-        "2022postEE": ["MuonEGE", "MuonEGF", "MuonEGG"],
-        "2023preBPix": ["MuonEGv1C", "MuonEGv2C", "MuonEGv3C", "MuonEGv4C"],
-        "2023postBPix": ["MuonEGv1D", "MuonEGv2D"],
-    },
-}
-DATASETS = {
-    "ztoee": {"mc": ["dyjets", "ttbar", "singletop", "diboson"], "data": ["EGamma"]},
-    "ztomumu": {"mc": ["dyjets", "ttbar", "singletop", "diboson"], "data": ["SingleMuon", "DoubleMuon", "Muon"]},
-    "hww": {
-        "mc": ["ttbar_noExt", "singletop_noExt", "diboson", "dyjets", "vjets", "WG"],
-        "data": ["SingleMuon", "DoubleMuon", "Muon", "MuonEG", "EGamma"],
-    },
-    "zzto4l": {
-        "mc": ["higgs", "ggtozz", "qqtozz"],
-        "data": ["SingleMuon", "DoubleMuon", "Muon", "MuonEG", "EGamma"],
-    },
-    "zplusl": {
-        "mc": ["triboson", "wz", "tt_bosons", "dyjets", "semilep_ttbar"],
-        "data": ["SingleMuon", "DoubleMuon", "Muon", "MuonEG", "EGamma"],
-    },
-    "zplusll": {
-        "mc": ["triboson", "wz", "tt_bosons", "dyjets", "semilep_ttbar"],
-        "data": ["SingleMuon", "DoubleMuon", "Muon", "MuonEG", "EGamma"],
-    },
-}
+from analysis.filesets.utils import fileset_checker, get_datasets_to_run_over
 
 
 if __name__ == "__main__":
@@ -158,9 +10,12 @@ if __name__ == "__main__":
         "-w",
         "--workflow",
         dest="workflow",
+        required=True,
         type=str,
-        choices=["ztomumu", "ztoee", "zzto4l", "hww", "zplusl", "zplusll"],
-        help="workflow config to run",
+        choices=[
+            f.stem for f in (Path.cwd() / "analysis" / "workflows").glob("*.yaml")
+        ],
+        help="workflow to run",
     )
     parser.add_argument(
         "-y",
@@ -175,7 +30,7 @@ if __name__ == "__main__":
         dest="nfiles",
         type=int,
         default=15,
-        help="number of root files to include in each dataset partition (default 10)",
+        help="number of root files to include in each dataset partition (default 15)",
     )
     parser.add_argument(
         "--submit",
@@ -191,30 +46,20 @@ if __name__ == "__main__":
         "--output_format",
         type=str,
         default="coffea",
-        choices=["coffea", "root"],
-        help="format of output histogram",
+        choices=["coffea", "parquet"],
+        help="format of output file",
     )
     args = parser.parse_args()
 
-    # check if the fileset for the given year exists, generate it otherwise
-    filesets_path = Path.cwd() / "analysis" / "filesets"
-    fileset_file = filesets_path / f"fileset_{args.year}_NANO_lxplus.json"
-    if not fileset_file.exists():
-        cmd = f"python3 fetch.py --year {args.year}"
-        subprocess.run(cmd, shell=True)
+    # get datasets to run over for selected workflow and year
+    datasets_to_run_over = get_datasets_to_run_over(args.workflow, args.year)
 
-    # build the list of datasets to run over, based on processor and year
-    to_run = []
-    for kind, datasets in DATASETS[args.workflow].items():
-        for dataset in datasets:
-            if kind == "mc":
-                to_run += MC_DATASETS[dataset]
-            if kind == "data":
-                to_run += PD_DATASETS[dataset][args.year]
+    # check if the input fileset for the given year exists, generate it otherwise
+    fileset_checker(samples=datasets_to_run_over, year=args.year)
 
     # submit (or prepare) a job for each dataset using the given arguments
     cmd = ["python3", "submit_condor.py"]
-    for dataset in to_run:
+    for dataset in datasets_to_run_over:
         cmd_args = [
             "--workflow",
             args.workflow,

@@ -13,6 +13,7 @@ from analysis.corrections.partonshower import add_partonshower_weight
 from analysis.corrections.electron_ss import apply_electron_ss_corrections
 
 
+
 def object_corrector_manager(events, year, dataset, workflow_config):
     """apply object level corrections"""
     objcorr_config = workflow_config.corrections_config["objects"]
@@ -95,6 +96,7 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, variation="nominal
                     events=pruned_ev,
                     weights_container=weights_container,
                 )
+                
         if "muon" in weights_config:
             if "selected_muons" in pruned_ev.fields:
                 muon_weights = MuonWeights(
@@ -141,9 +143,7 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, variation="nominal
                 if "trigger" in weights_config["electron"]:
                     if weights_config["electron"]["trigger"]:
                         electron_weights.add_hlt_weights(
-                            dataset=dataset,
                             id_wp=weights_config["electron"]["id"],
-                            hlt_paths=workflow_config.event_selection["hlt_paths"],
                         )
     else:
         weights_container.add("weight", np.ones(len(pruned_ev)))

@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from analysis.filesets.utils import divide_list
 from analysis.utils import make_output_directory
+from analysis.filesets.utils import fileset_checker
 
 
 def move_proxy() -> str:
@@ -16,7 +17,9 @@ def move_proxy() -> str:
             "VOMS proxy expired or non-existing: please run 'voms-proxy-init --voms cms'"
         )
     user = os.environ["USER"]
-    x509_localpath = subprocess.check_output("voms-proxy-info -path", shell=True, text=True).strip()
+    x509_localpath = subprocess.check_output(
+        "voms-proxy-info -path", shell=True, text=True
+    ).strip()
     x509_path = (
         f"/afs/cern.ch/user/{user[0]}/{user}/private/{x509_localpath.split('/')[-1]}"
     )
@@ -40,11 +43,7 @@ def submit_condor(args):
         log_dir.mkdir(parents=True, exist_ok=True)
 
     # check if the fileset for the given year exists, generate it otherwise
-    filesets_path = Path.cwd() / "analysis" / "filesets"
-    fileset_file = filesets_path / f"fileset_{args.year}_NANO_lxplus.json"
-    if not fileset_file.exists():
-        cmd = f"python3 fetch.py --year {args.year}"
-        subprocess.run(cmd, shell=True)
+    fileset_checker(samples=[args.dataset], year=args.year)
     # save partitions json and jobnums to job directory
     jobnum_list = []
     partition_dataset = {}
@@ -69,6 +68,7 @@ def submit_condor(args):
 
     # build and save arguments json
     args.output_path = make_output_directory(args)
+    args.user = os.environ["USER"]
     args_file = job_dir / "arguments.json"
     with open(args_file, "w") as json_file:
         json.dump(vars(args), json_file, indent=4)
@@ -100,9 +100,12 @@ if __name__ == "__main__":
         "-w",
         "--workflow",
         dest="workflow",
+        required=True,
         type=str,
-        choices=["ztomumu", "ztoee", "zzto4l", "hww", "zplusl", "zplusll"],
-        help="workflow config to run",
+        choices=[
+            f.stem for f in (Path.cwd() / "analysis" / "workflows").glob("*.yaml")
+        ],
+        help="workflow to run",
     )
     parser.add_argument(
         "-y",
@@ -140,7 +143,7 @@ if __name__ == "__main__":
         "--output_format",
         type=str,
         default="coffea",
-        choices=["coffea", "root"],
+        choices=["coffea", "root", "parquet"],
         help="format of output histogram",
     )
     args = parser.parse_args()

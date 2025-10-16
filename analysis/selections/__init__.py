@@ -8,6 +8,7 @@ from analysis.selections.utils import (
     fourlepcand,
     make_cand,
     select_best_zzcandidate,
+    select_candidate_mass,
 )
 from analysis.selections.object_selections import ObjectSelector
 import analysis.selections.event_selections as event_selections
@@ -17,3 +18,4 @@ get_trigger_mask = event_selections.get_trigger_mask
 get_trigger_match_mask = event_selections.get_trigger_match_mask
 get_metfilters_mask = event_selections.get_metfilters_mask
 get_zzto4l_trigger_mask = event_selections.get_zzto4l_trigger_mask
+get_stitching_mask = event_selections.get_stitching_mask

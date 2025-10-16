@@ -1,3 +1,12 @@
+datasets:
+  data:
+    - muon
+    - electron
+    - muon_electron
+  mc:
+    - dy_nlo
+    - wz
+    - tt_semileptonic
 object_selection:
   muons:
     field: events.Muon
@@ -7,7 +16,7 @@ object_selection:
         - np.abs(events.Muon.eta) < 2.4
         - np.abs(events.Muon.dxy) < 0.5
         - np.abs(events.Muon.dz) < 1
-        - events.Muon.isGlobal | (events.Muon.isTracker & (events.Muon.nStations > 0))
+        - events.Muon.isGlobal | events.Muon.isTracker
       is_relaxed:
         - objects['muons'].is_loose
         - np.abs(events.Muon.sip3d) < 4
@@ -25,7 +34,7 @@ object_selection:
         - np.abs(events.Electron.dz) < 1
       is_relaxed:
         - objects['electrons'].is_loose
-        - events.Electron.sip3d < 4
+        - np.abs(events.Electron.sip3d) < 4
       is_tight:
         - objects['electrons'].is_loose
         - objects['electrons'].is_relaxed
@@ -50,15 +59,15 @@ object_selection:
         - (1*objects['zcandidates'].l1.is_tight + 1*objects['zcandidates'].l2.is_tight) == 2
     cuts: 
       - objects['zcandidates'].is_sr
-      - np.abs(objects['zcandidates'].p4.mass - 91.1876) < 7
-      - ((objects['zcandidates'].l1.p4.pt > 10) & (objects['zcandidates'].l1.p4.pt > 20)) | ((objects['zcandidates'].l1.p4.pt > 20) & (objects['zcandidates'].l1.p4.pt > 10))
+      - (objects['zcandidates'].p4.mass > 60) & (objects['zcandidates'].p4.mass < 120)
+      - ((objects['zcandidates'].l1.p4.pt > 10) & (objects['zcandidates'].l2.p4.pt > 20)) | ((objects['zcandidates'].l1.p4.pt > 20) & (objects['zcandidates'].l2.p4.pt > 10))
   best_zcandidates:
     field: select_best_zcandidate
-  other_loose_leptons:
-    field: select_other_loose_leptons
+  other_relaxed_leptons:
+    field: select_other_relaxed_leptons
     add_cut:
       is_barrel:
-        - ak.where(np.abs(objects['other_loose_leptons'].pdgId) == 11, np.abs(objects['other_loose_leptons'].eta) < 1.479, np.abs(objects['other_loose_leptons'].eta) < 1.2)
+        - ak.where(np.abs(objects['other_relaxed_leptons'].pdgId) == 11, np.abs(objects['other_relaxed_leptons'].eta) < 1.479, np.abs(objects['other_relaxed_leptons'].eta) < 1.2)
 event_selection:
   hlt_paths:
     - SingleMu
@@ -73,10 +82,10 @@ event_selection:
     atleast_one_goodvertex: events.PV.npvsGood > 0
     met_filters: get_metfilters_mask(events, year)
     met_25: events.PuppiMET.pt < 25
-    one_relaxed_lepton: ak.num(objects['other_loose_leptons']) == 1
+    one_relaxed_lepton: ak.num(objects['other_relaxed_leptons']) == 1
     atleast_one_zcandidate: ak.num(objects['zcandidates']) >= 1
-    ele_flavor: ak.all(np.abs(objects['other_loose_leptons'].pdgId) == 11, axis=1)
-    mu_flavor: ak.all(np.abs(objects['other_loose_leptons'].pdgId) == 13, axis=1)
+    ele_flavor: ak.all(np.abs(objects['other_relaxed_leptons'].pdgId) == 11, axis=1)
+    mu_flavor: ak.all(np.abs(objects['other_relaxed_leptons'].pdgId) == 13, axis=1)
   categories:
     electron:
       - trigger
@@ -114,10 +123,11 @@ corrections:
       - trigger: false
 histogram_config:
   axes:
-    loose_lepton_pt:
+    probe_lepton_pt:
       type: Variable
       edges:
         - 5
+        - 7
         - 10
         - 20
         - 30
@@ -125,98 +135,34 @@ histogram_config:
         - 50
         - 80
       label: $p_T(\ell)$ [GeV]
-      expression: objects['other_loose_leptons'].pt
-    loose_lepton_eta:
+      expression: objects['other_relaxed_leptons'].pt
+    probe_lepton_eta:
       type: Regular
       bins: 50
       start: 0
       stop: 2.5
       label: $|\eta(\ell)|$
-      expression: np.abs(objects['other_loose_leptons'].eta)
+      expression: np.abs(objects['other_relaxed_leptons'].eta)
     is_barrel_lepton:
-      type: Regular
-      bins: 2
-      start: 0
-      stop: 2
+      type: Boolean
       label: is barrel $\ell$
-      expression: objects['other_loose_leptons'].is_barrel
+      expression: objects['other_relaxed_leptons'].is_barrel
     is_passing_lepton:
-      type: Regular
-      bins: 2
-      start: 0
-      stop: 2
+      type: Boolean
       label: $\ell$ pass 
-      expression: objects['other_loose_leptons'].pass_selection
-    z_lepton1_pt:
-      type: Regular
-      bins: 50
-      start: 5
-      stop: 300
-      label: $p_T(\ell_1^{Z})$ [GeV]
-      expression: objects['best_zcandidates'].l1.p4.pt
-    z_lepton1_eta:
-      type: Regular
-      bins: 50
-      start: -2.5
-      stop: 2.5
-      label: $\eta(\ell_1^{Z})$
-      expression: objects['best_zcandidates'].l1.p4.eta
-    z_lepton1_phi:
-      type: Regular
-      bins: 50
-      start: -3.14159
-      stop: 3.14159
-      label: $\phi((\ell_1^{Z}))$
-      expression: objects['best_zcandidates'].l1.p4.phi
-    z_lepton2_pt:
-      type: Regular
-      bins: 50
-      start: 5
-      stop: 300
-      label: $p_T(\ell_2^{Z})$ [GeV]
-      expression: objects['best_zcandidates'].l2.p4.pt
-    z_lepton2_eta:
-      type: Regular
-      bins: 50
-      start: -2.5
-      stop: 2.5
-      label: $\eta(\ell_2^{Z})$
-      expression: objects['best_zcandidates'].l2.p4.eta
-    z_lepton2_phi:
-      type: Regular
-      bins: 50
-      start: -3.14159
-      stop: 3.14159
-      label: $\phi((\ell_2^{Z}))$
-      expression: objects['best_zcandidates'].l2.p4.phi
-    z_pt:
-      type: Regular
-      bins: 100
+      expression: objects['other_relaxed_leptons'].pass_selection
+    n_missing_hits:
+      type: Integer
       start: 0
-      stop: 500
-      label: $p_T(Z)$ [GeV]
-      expression: objects['best_zcandidates'].p4.pt
-    z_mass:
-      type: Regular
-      bins: 54
-      start: 12
-      stop: 120
-      label: $m(Z)$ [GeV]
-      expression: objects['best_zcandidates'].p4.mass
+      stop: 10
+      label: n_missing_hits
+      expression: objects['other_relaxed_leptons'].lostHits
   layout:
-    loose_lepton:
-      - loose_lepton_pt
-      - loose_lepton_eta
+    probe_lepton:
+      - probe_lepton_pt
+      - probe_lepton_eta
+      - n_missing_hits
       - is_passing_lepton
       - is_barrel_lepton
-    zcand:
-      - z_mass
-      - z_pt
-    zcand_l1:
-      - z_lepton1_pt
-      - z_lepton2_eta
-    zcand_l2:
-      - z_lepton2_pt
-      - z_lepton2_eta
   add_syst_axis: true
   add_weight: true

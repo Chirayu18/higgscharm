@@ -1,3 +1,12 @@
+datasets:
+  data:
+    - muon
+    - electron
+    - muon_electron
+  mc:
+    - tt
+    - singletop
+    - diboson
 object_selection:
   muons:
     field: events.Muon

@@ -89,4 +89,4 @@ def apply_electron_ss_corrections(
         corrected_pt = filter_boundaries(ele_pt_corr, ele_pt)
 
         events["Electron", "pt"] = corrected_pt
-        update_met(events=events, other_obj="Muon", met_obj="PuppiMET")
+        #update_met(events=events, other_obj="Electron", met_obj="PuppiMET")

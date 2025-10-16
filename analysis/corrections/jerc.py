@@ -101,7 +101,6 @@ def apply_jerc_corrections(
     apply_jer,
     apply_junc,
 ):
-    era = get_dataset_era(dataset, year)
     # add requiered variables to Jet collection
     jets = events.Jet
     if apply_jec:
@@ -172,7 +171,8 @@ def apply_jerc_corrections(
                 "massRaw": "mass_raw",
             }
         )
-    if era == "mc":
+    era = get_dataset_era(dataset, year)
+    if era in ["mc", "signal"]:
         # create MC factory with jec, jer and junc stack
         stack = JECStack(jec_options)
         jec_factory = CorrectedJetsFactory(jec_name_map, stack)

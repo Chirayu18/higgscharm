@@ -17,6 +17,7 @@ class WorkflowConfigBuilder:
             event_selection=self.parse_event_selection(),
             corrections_config=self.parse_corrections_config(),
             histogram_config=self.parse_histogram_config(),
+            datasets=self.parse_datasets_config(),
         )
 
     def parse_object_selection(self):
@@ -60,3 +61,6 @@ class WorkflowConfigBuilder:
                     for corr, wp in val.items():
                         corrections["event_weights"][name][corr] = wp
         return corrections
+
+    def parse_datasets_config(self):
+        return {key: self.config["datasets"][key] for key in self.config["datasets"]}

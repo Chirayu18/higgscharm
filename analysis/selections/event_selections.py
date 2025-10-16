@@ -49,3 +49,10 @@ def get_metfilters_mask(events, year):
         if mf in events.Flag.fields:
             metfilters_mask = metfilters_mask & events.Flag[mf]
     return metfilters_mask
+
+
+def get_stitching_mask(events, dataset, dataset_key, ht_value):
+    stitching_mask = np.ones(len(events), dtype="bool")
+    if dataset.startswith(dataset_key):
+        stitching_mask = events.LHE.HT < ht_value
+    return stitching_mask

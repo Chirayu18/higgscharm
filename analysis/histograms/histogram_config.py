@@ -54,6 +54,7 @@ class IntCategoryAxis:
             "growth": self.growth,
         }
 
+
 @dataclass
 class IntegerAxis:
     name: str
@@ -71,7 +72,8 @@ class IntegerAxis:
             "start": self.start,
             "stop": self.stop,
         }
-        
+
+
 @dataclass
 class StrCategoryAxis:
     name: str
@@ -89,6 +91,18 @@ class StrCategoryAxis:
             "categories": self.categories,
             "growth": self.growth,
         }
+
+
+@dataclass
+class BooleanAxis:
+    name: str
+    label: str
+    expression: str
+    type_: str = field(default="Boolean", metadata={"alias": "type"})
+
+    def __post_init__(self):
+        self.__dict__["type"] = self.type_
+        self.build_args = {"name": self.name, "label": self.label}
 
 
 @dataclass
@@ -136,6 +150,7 @@ class HistogramConfig:
         add_weight:
             if True hist.storage.Weight() will be added to the histograms
     """
+
     axes: Dict[str, Any]
     layout: Union[str, Dict[str, List[str]]]
     add_weight: bool = True
@@ -161,6 +176,7 @@ class HistogramConfig:
             "IntCategory": IntCategoryAxis,
             "StrCategory": StrCategoryAxis,
             "Integer": IntegerAxis,
+            "Boolean": BooleanAxis,
         }
         for name, axis_dict in self.axes.items():
             axis_type = axis_dict.pop("type")

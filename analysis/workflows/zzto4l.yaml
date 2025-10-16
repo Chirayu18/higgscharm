@@ -1,3 +1,12 @@
+datasets:
+  data:
+    - muon
+    - electron
+    - muon_electron
+  mc:
+    - higgs
+    - qqtozz
+    - ggtozz
 object_selection:
   muons:
     field: events.Muon
@@ -7,7 +16,7 @@ object_selection:
         - np.abs(events.Muon.eta) < 2.4
         - np.abs(events.Muon.dxy) < 0.5
         - np.abs(events.Muon.dz) < 1
-        - events.Muon.isGlobal | (events.Muon.isTracker & (events.Muon.nStations > 0))
+        - events.Muon.isGlobal | events.Muon.isTracker
       is_relaxed:
         - objects['muons'].is_loose
         - np.abs(events.Muon.sip3d) < 4
@@ -25,7 +34,7 @@ object_selection:
         - np.abs(events.Electron.dz) < 1
       is_relaxed:
         - objects['electrons'].is_loose
-        - events.Electron.sip3d < 4
+        - np.abs(events.Electron.sip3d) < 4
       is_tight:
         - objects['electrons'].is_loose
         - objects['electrons'].is_relaxed

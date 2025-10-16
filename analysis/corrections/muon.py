@@ -6,8 +6,8 @@ from typing import Type
 from coffea.analysis_tools import Weights
 from analysis.working_points import working_points
 from analysis.selections.trigger import trigger_match_mask
-from analysis.corrections.utils import get_pog_json, unflat_sf
 from analysis.selections.event_selections import get_trigger_mask
+from analysis.corrections.utils import get_pog_json, unflat_sf, get_muon_hlt_json
 
 
 class MuonWeights:
@@ -109,31 +109,27 @@ class MuonWeights:
             id_wp=id_wp,
             iso_wp=iso_wp,
             variation="nominal",
-            hlt_paths=hlt_paths,
-            dataset=dataset,
         )
         if self.variation == "nominal":
+            """
             # get 'up' and 'down' weights
             up_weights = self.get_hlt_weights(
                 id_wp=id_wp,
                 iso_wp=iso_wp,
                 variation="systup",
-                hlt_paths=hlt_paths,
-                dataset=dataset,
             )
             down_weights = self.get_hlt_weights(
                 id_wp=id_wp,
                 iso_wp=iso_wp,
                 variation="systdown",
-                hlt_paths=hlt_paths,
-                dataset=dataset,
             )
+            """
             # add nominal, up and down weights to weights container
             self.weights.add(
                 name=f"muon_trigger",
                 weight=nominal_weights,
-                weightUp=up_weights,
-                weightDown=down_weights,
+                # weightUp=up_weights,
+                # weightDown=down_weights,
             )
         else:
             # add nominal weights to weights container
@@ -224,32 +220,36 @@ class MuonWeights:
         )
         return weights
 
-    def get_hlt_weights(self, id_wp, iso_wp, hlt_paths, variation, dataset):
+    def get_hlt_weights(self, id_wp, iso_wp, variation):
         """
         Compute muon HLT weights
 
         Parameters:
         -----------
             variation:
-                {sf, systup, systdown}
-            hlt_paths:
+                {nominal, systup, systdown}
         """
         muon_pt_mask = self.flat_muons.pt > 26.0
+
+        kind = "single" if ak.all(ak.num(self.muons) == 1) else "double"
+        if kind == "double":
+            upper_limit = 199.99
+            if self.year == "2022preEE":
+                upper_limit = 499.99
+            muon_pt_mask = muon_pt_mask & (self.flat_muons.pt < upper_limit)
+
         muon_eta_mask = np.abs(self.flat_muons.eta) < 2.4
-        # get trigger match mask
-        trigger_match = trigger_match_mask(
-            events=self.events, leptons=self.muons, hlt_paths=hlt_paths, year=self.year
-        )
-        trigger_mask = ak.flatten(trigger_match)
+
         # get muons passing ID and Iso wps, trigger, and within SF binning
-        in_muons_mask = muon_pt_mask & muon_eta_mask & trigger_mask
+        in_muons_mask = muon_pt_mask & muon_eta_mask
         in_muons = self.flat_muons.mask[in_muons_mask]
+
         # get muons pT and abseta (replace None values with some 'in-limit' value)
         muon_pt = ak.fill_none(in_muons.pt, 26)
         muon_eta = ak.fill_none(np.abs(in_muons.eta), 0)
         hlt_path_id_map = {
             ("tight", "tight"): "NUM_IsoMu24_DEN_CutBasedIdTight_and_PFIsoTight",
-            ("medium", "medium"): "NUM_IsoMu24_DEN_CutBasedIdMedium_and_PFIsoMedium",
+            # ("medium", "medium"): "NUM_IsoMu24_DEN_CutBasedIdMedium_and_PFIsoMedium",
         }
         assert (
             id_wp,
@@ -257,13 +257,43 @@ class MuonWeights:
         ) in hlt_path_id_map, (
             f"There's no HLT correction for (ID, ISO) wps pair {(id_wp, iso_wp)}"
         )
-        weights = unflat_sf(
-            self.cset[hlt_path_id_map[(id_wp, iso_wp)]].evaluate(
-                muon_eta,
-                muon_pt,
-                variation,
-            ),
-            in_muons_mask,
-            self.muons_counts,
-        )
-        return weights
+        if kind == "single":
+            # for single muon events, compute SF from POG SF
+            sf = self.cset[hlt_path_id_map[(id_wp, iso_wp)]].evaluate(
+                muon_eta, muon_pt, variation
+            )
+            nominal_sf = unflat_sf(sf, in_muons_mask, self.muons_counts)
+        elif kind == "double":
+            # for double muon events, compute SF from data/mc muon hlt efficiencies
+            double_cset = correctionlib.CorrectionSet.from_file(
+                get_muon_hlt_json(year=self.year)
+            )
+            data_eff = double_cset["Muon-HLT-DataEff"].evaluate(
+                variation, hlt_path_id_map[(id_wp, iso_wp)], muon_eta, muon_pt
+            )
+            data_eff = ak.where(in_muons_mask, data_eff, ak.ones_like(data_eff))
+            data_eff = ak.unflatten(data_eff, self.muons_counts)
+            data_eff_leading = ak.firsts(data_eff)
+            data_eff_subleading = ak.pad_none(data_eff, target=2)[:, 1]
+            full_data_eff = (
+                data_eff_leading
+                + data_eff_subleading
+                - data_eff_leading * data_eff_subleading
+            )
+            full_data_eff = ak.fill_none(full_data_eff, 1)
+
+            mc_eff = double_cset["Muon-HLT-McEff"].evaluate(
+                variation, hlt_path_id_map[(id_wp, iso_wp)], muon_eta, muon_pt
+            )
+            mc_eff = ak.where(in_muons_mask, mc_eff, ak.ones_like(mc_eff))
+            mc_eff = ak.unflatten(mc_eff, self.muons_counts)
+            mc_eff_leading = ak.firsts(mc_eff)
+            mc_eff_subleading = ak.pad_none(mc_eff, target=2)[:, 1]
+            full_mc_eff = (
+                mc_eff_leading + mc_eff_subleading - mc_eff_leading * mc_eff_subleading
+            )
+            full_mc_eff = ak.fill_none(full_mc_eff, 1)
+
+            nominal_sf = full_data_eff / full_mc_eff
+
+        return nominal_sf

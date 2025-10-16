@@ -24,6 +24,51 @@ class WorkingPoints:
             # WP was derived before scale corrections, so the uncorrected pt should be used when available
             "bdt": (
                 (
+                    (np.abs(events.Electron.eta) < 0.8)
+                    & (
+                        (
+                            (events.Electron.pt > 5)
+                            & (events.Electron.pt < 10)
+                            & (events.Electron.mvaHZZIso > 0.9044)
+                        )
+                        | (
+                            (events.Electron.pt > 10)
+                            & (events.Electron.mvaHZZIso > 0.1969)
+                        )
+                    )
+                )
+                | (
+                    (np.abs(events.Electron.eta) > 0.8)
+                    & (np.abs(events.Electron.eta) < 1.479)
+                    & (
+                        (
+                            (events.Electron.pt > 5)
+                            & (events.Electron.pt < 10)
+                            & (events.Electron.mvaHZZIso > 0.9094)
+                        )
+                        | (
+                            (events.Electron.pt > 10)
+                            & (events.Electron.mvaHZZIso > 0.0759)
+                        )
+                    )
+                )
+                | (
+                    (np.abs(events.Electron.eta) > 1.479)
+                    & (
+                        (
+                            (events.Electron.pt > 5)
+                            & (events.Electron.pt < 10)
+                            & (events.Electron.mvaHZZIso > 0.9444)
+                        )
+                        | (
+                            (events.Electron.pt > 10)
+                            & (events.Electron.mvaHZZIso > -0.5169)
+                        )
+                    )
+                )
+            ),
+            "bdt_raw": (
+                (
                     (np.abs(events.Electron.eta + events.Electron.deltaEtaSC) < 0.8)
                     & (
                         (

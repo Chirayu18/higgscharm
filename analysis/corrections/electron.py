@@ -109,33 +109,31 @@ class ElectronWeights:
                 weight=nominal_weights,
             )
 
-    def add_hlt_weights(self, hlt_paths, dataset, id_wp):
+    def add_hlt_weights(self, id_wp):
         """
         add electron HLT weights to weights container
         """
-        nominal_weights = self.get_hlt_weights(
-            variation="sf", hlt_paths=hlt_paths, dataset=dataset, id_wp=id_wp
-        )
+        nominal_weights = self.get_hlt_weights(variation="nom", id_wp=id_wp)
         if self.variation == "nominal":
+            """
             # get 'up' and 'down' weights
             up_weights = self.get_hlt_weights(
-                variation="sfup",
+                variation="up",
                 hlt_paths=hlt_paths,
-                dataset=dataset,
                 id_wp=id_wp,
             )
             down_weights = self.get_hlt_weights(
-                variation="sfdown",
+                variation="down",
                 hlt_paths=hlt_paths,
-                dataset=dataset,
                 id_wp=id_wp,
             )
+            """
             # add scale factors to weights container
             self.weights.add(
                 name="electron_hlt",
                 weight=nominal_weights,
-                weightUp=up_weights,
-                weightDown=down_weights,
+                # weightUp=up_weights,
+                # weightDown=down_weights,
             )
         else:
             self.weights.add(
@@ -232,7 +230,7 @@ class ElectronWeights:
         )
         return weights
 
-    def get_hlt_weights(self, variation, hlt_paths, id_wp, dataset):
+    def get_hlt_weights(self, variation, id_wp):
         """
         Compute electron HLT weights
 
@@ -245,18 +243,10 @@ class ElectronWeights:
         cset = correctionlib.CorrectionSet.from_file(
             get_pog_json(json_name="electron_hlt", year=self.year)
         )
-        # get trigger match mask
-        trigger_match = trigger_match_mask(
-            events=self.events,
-            leptons=self.electrons,
-            hlt_paths=hlt_paths,
-            year=self.year,
-        )
-        trigger_mask = ak.flatten(trigger_match)
-
         # get electrons that pass the id wp, and within SF binning
         electron_pt_mask = self.flat_electrons.pt > 25.0
-        in_electrons_mask = electron_pt_mask & trigger_mask
+
+        in_electrons_mask = electron_pt_mask
         in_electrons = self.flat_electrons.mask[in_electrons_mask]
 
         # get electrons pT and abseta (replace None values with some 'in-limit' value)
@@ -267,22 +257,63 @@ class ElectronWeights:
             "wp80iso": "HLT_SF_Ele30_MVAiso80ID",
             "wp90iso": "HLT_SF_Ele30_MVAiso90ID",
         }
-        weights = unflat_sf(
-            cset["Electron-HLT-SF"].evaluate(
+        sf_variations_map = {"nom": "sf", "up": "sfup", "down": "sfdown"}
+
+        kind = "single" if ak.all(ak.num(self.electrons) == 1) else "double"
+        if kind == "single":
+            # for single electorn events, compute SF from POG SF
+            sf = cset["Electron-HLT-SF"].evaluate(
+                self.year_map[self.year],
+                sf_variations_map[variation],
+                hlt_path_id_map[id_wp],
+                electron_eta,
+                electron_pt,
+            )
+            sf = ak.where(in_electrons_mask, sf, ak.ones_like(sf))
+            sf = ak.fill_none(ak.unflatten(sf, self.electrons_counts), value=1)
+            nominal_sf = ak.firsts(nominal_sf)
+
+        elif kind == "double":
+            # for double electron events, compute SF from electrons' efficiencies
+            data_eff = cset["Electron-HLT-DataEff"].evaluate(
                 self.year_map[self.year],
                 variation,
                 hlt_path_id_map[id_wp],
                 electron_eta,
                 electron_pt,
-            ),
-            in_electrons_mask,
-            self.electrons_counts,
-        )
-        return weights
+            )
+            data_eff = ak.where(in_electrons_mask, data_eff, ak.ones_like(data_eff))
+            data_eff = ak.unflatten(data_eff, self.electrons_counts)
+            data_eff_leading = ak.firsts(data_eff)
+            data_eff_subleading = ak.pad_none(data_eff, target=2)[:, 1]
+            full_data_eff = (
+                data_eff_leading
+                + data_eff_subleading
+                - data_eff_leading * data_eff_subleading
+            )
+            full_data_eff = ak.fill_none(full_data_eff, 1)
 
-    
-    
-    
+            mc_eff = cset["Electron-HLT-McEff"].evaluate(
+                self.year_map[self.year],
+                variation,
+                hlt_path_id_map[id_wp],
+                electron_eta,
+                electron_pt,
+            )
+            mc_eff = ak.where(in_electrons_mask, mc_eff, ak.ones_like(mc_eff))
+            mc_eff = ak.unflatten(mc_eff, self.electrons_counts)
+            mc_eff_leading = ak.firsts(mc_eff)
+            mc_eff_subleading = ak.pad_none(mc_eff, target=2)[:, 1]
+            full_mc_eff = (
+                mc_eff_leading + mc_eff_subleading - mc_eff_leading * mc_eff_subleading
+            )
+            full_mc_eff = ak.fill_none(full_mc_eff, 1)
+
+            # compute SF from efficiencies
+            nominal_sf = full_data_eff / full_mc_eff
+
+        return nominal_sf
+
 
 class ElectronSS:
     """
@@ -361,7 +392,9 @@ class ElectronSS:
                 self.flat_electrons.pt * scale,
                 self.flat_electrons.pt,
             )
-            self.events["Electron", "pt"] = ak.unflatten(corrected_flat_electrons_pt, self.electrons_counts)
+            self.events["Electron", "pt"] = ak.unflatten(
+                corrected_flat_electrons_pt, self.electrons_counts
+            )
             # propagate electron pT corrections to MET
             update_met(events=self.events, other_obj="Electron", met_obj="PuppiMET")
         else:
@@ -389,7 +422,9 @@ class ElectronSS:
                 self.flat_electrons.pt * smearing,
                 self.flat_electrons.pt,
             )
-            self.events["Electron", "pt"] = ak.unflatten(corrected_flat_electrons_pt, self.electrons_counts)
+            self.events["Electron", "pt"] = ak.unflatten(
+                corrected_flat_electrons_pt, self.electrons_counts
+            )
             # propagate electron pT corrections to MET
             update_met(events=self.events, other_obj="Electron", met_obj="PuppiMET")
         else:
