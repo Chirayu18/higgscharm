@@ -15,7 +15,7 @@ if __name__ == "__main__":
         "--image",
         dest="image",
         type=str,
-        default="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/coffeateam/coffea-dask:latest-py3.10",
+        default="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/coffeateam/coffea-dask-almalinux9:2025.10.1-py3.10",        
     )
     parser.add_argument(
         "--samples",
@@ -36,6 +36,7 @@ if __name__ == "__main__":
     if not sites_file.exists():
         cmd = f"python3 analysis/filesets/build_sites.py --year {args.year}"
         subprocess.run(cmd, shell=True)
+
 
     samples_str = " ".join(args.samples) if args.samples else ""
     cmd = f"singularity exec -B /afs -B /cvmfs {args.image} python3 analysis/filesets/make_filesets.py --year {args.year} --samples {samples_str}"

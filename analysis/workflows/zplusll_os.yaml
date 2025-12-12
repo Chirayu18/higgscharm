@@ -123,9 +123,9 @@ event_selection:
       - atleast_one_zll
 corrections:
   objects:
-    - jets
-    - muons
-    - electrons
+    - jec
+    - muon_ss
+    - electon_ss
   event_weights:
     genWeight: true
     pileupWeight: true

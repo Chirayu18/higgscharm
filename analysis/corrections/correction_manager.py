@@ -1,6 +1,7 @@
 import numpy as np
 from coffea.analysis_tools import Weights
 from analysis.corrections.muon import MuonWeights
+from analysis.corrections.pnet_ctag import CTagCorrector
 from analysis.corrections.pileup import add_pileup_weight
 from analysis.corrections.nnlops import add_nnlops_weight
 from analysis.corrections.lhepdf import add_lhepdf_weight
@@ -13,12 +14,11 @@ from analysis.corrections.partonshower import add_partonshower_weight
 from analysis.corrections.electron_ss import apply_electron_ss_corrections
 
 
-
 def object_corrector_manager(events, year, dataset, workflow_config):
     """apply object level corrections"""
     objcorr_config = workflow_config.corrections_config["objects"]
 
-    if "jets" in objcorr_config:
+    if "jec" in objcorr_config:
         # apply JEC/JER corrections
         apply_jec = True
         apply_jer = False
@@ -33,20 +33,20 @@ def object_corrector_manager(events, year, dataset, workflow_config):
             apply_jer=apply_jer,
             apply_junc=apply_junc,
         )
-    if "muons" in objcorr_config:
+    if "muon_ss" in objcorr_config:
         # apply muon scale and smearing corrections
         apply_muon_ss_corrections(
             events=events,
             year=year,
             variation="nominal",
         )
-    if "electrons" in objcorr_config:
+    if "electon_ss" in objcorr_config:
         apply_electron_ss_corrections(
             events=events,
             year=year,
             variation="nominal",
         )
-    if "met" in objcorr_config:
+    if "met_phi" in objcorr_config:
         # apply MET-phi modulation corrections
         if year.startswith("2022"):
             apply_met_phi_corrections(
@@ -65,38 +65,41 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, variation="nominal
         if weights_config["genWeight"]:
             weights_container.add("genweight", pruned_ev.genWeight)
 
-        if weights_config["pileupWeight"]:
-            add_pileup_weight(
-                events=pruned_ev,
-                year=year,
-                variation="nominal",
-                weights_container=weights_container,
-            )
-        if weights_config["partonshowerWeight"]:
-            if "PSWeight" in pruned_ev.fields:
-                add_partonshower_weight(
+        if "pileupWeight" in weights_config:
+            if weights_config["pileupWeight"]:
+                add_pileup_weight(
                     events=pruned_ev,
+                    year=year,
+                    variation="nominal",
                     weights_container=weights_container,
                 )
-        if weights_config["lhepdfWeight"]:
-            if "LHEPdfWeight" in pruned_ev.fields:
-                add_lhepdf_weight(
-                    events=pruned_ev,
-                    weights_container=weights_container,
-                )
-        if weights_config["lhescaleWeight"]:
-            if "LHEScaleWeight" in pruned_ev.fields:
-                add_scalevar_weight(
-                    events=pruned_ev, weights_container=weights_container
-                )
-
-        if weights_config["nnlopsWeight"]:
-            if dataset.startswith("GluGluH"):
-                add_nnlops_weight(
-                    events=pruned_ev,
-                    weights_container=weights_container,
-                )
-                
+        if "partonshowerWeight" in weights_config:
+            if weights_config["partonshowerWeight"]:
+                if "PSWeight" in pruned_ev.fields:
+                    add_partonshower_weight(
+                        events=pruned_ev,
+                        weights_container=weights_container,
+                    )
+        if "lhepdfWeight" in weights_config:
+            if weights_config["lhepdfWeight"]:
+                if "LHEPdfWeight" in pruned_ev.fields:
+                    add_lhepdf_weight(
+                        events=pruned_ev,
+                        weights_container=weights_container,
+                    )
+        if "lhescaleWeight" in weights_config:
+            if weights_config["lhescaleWeight"]:
+                if "LHEScaleWeight" in pruned_ev.fields:
+                    add_scalevar_weight(
+                        events=pruned_ev, weights_container=weights_container
+                    )
+        if "nnlopsWeight" in weights_config:
+            if weights_config["nnlopsWeight"]:
+                if dataset.startswith("GluGluH"):
+                    add_nnlops_weight(
+                        events=pruned_ev,
+                        weights_container=weights_container,
+                    )
         if "muon" in weights_config:
             if "selected_muons" in pruned_ev.fields:
                 muon_weights = MuonWeights(
@@ -145,6 +148,19 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, variation="nominal
                         electron_weights.add_hlt_weights(
                             id_wp=weights_config["electron"]["id"],
                         )
+
+        if "ctagging" in weights_config:
+            if weights_config["ctagging"]:
+                ctag_corrector = CTagCorrector(
+                    events=pruned_ev,
+                    weights=weights_container,
+                    worging_point=weights_config["ctagging"]["wp"],
+                    year=year,
+                    variation=variation,
+                )
+                ctag_corrector.add_ctag_weights(flavor="b")
+                ctag_corrector.add_ctag_weights(flavor="c")
+                ctag_corrector.add_ctag_weights(flavor="light")
     else:
         weights_container.add("weight", np.ones(len(pruned_ev)))
     return weights_container

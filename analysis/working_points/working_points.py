@@ -1,4 +1,5 @@
 import numpy as np
+from analysis.corrections.utils import get_pnet_ctag_mask
 
 
 class WorkingPoints:
@@ -164,73 +165,4 @@ class WorkingPoints:
         return wps[wp]
 
     def jet_particlenet_c(self, events, wp, year):
-        # https://indico.cern.ch/event/1304360/contributions/5518916/attachments/2692786/4673101/230731_BTV.pdf
-        wps = {
-            "2022preEE": {
-                "loose": (events.Jet.btagPNetCvB > 0.181)
-                & (events.Jet.btagPNetCvL > 0.054),
-                "medium": (events.Jet.btagPNetCvB > 0.306)
-                & (events.Jet.btagPNetCvL > 0.160),
-                "tight": (events.Jet.btagPNetCvB > 0.259)
-                & (events.Jet.btagPNetCvL > 0.492),
-            },
-            "2022postEE": {
-                "loose": (events.Jet.btagPNetCvB > 0.182)
-                & (events.Jet.btagPNetCvL > 0.054),
-                "medium": (events.Jet.btagPNetCvB > 0.304)
-                & (events.Jet.btagPNetCvL > 0.160),
-                "tight": (events.Jet.btagPNetCvB > 0.258)
-                & (events.Jet.btagPNetCvL > 0.491),
-            },
-            "2023preBPix": {
-                "loose": (events.Jet.btagPNetCvB > 0.220)
-                & (events.Jet.btagPNetCvL > 0.052),
-                "medium": (events.Jet.btagPNetCvB > 0.353)
-                & (events.Jet.btagPNetCvL > 0.148),
-                "tight": (events.Jet.btagPNetCvB > 0.300)
-                & (events.Jet.btagPNetCvL > 0.434),
-            },
-            "2023postBPix": {
-                "loose": (events.Jet.btagPNetCvB > 0.091)
-                & (events.Jet.btagPNetCvL > 0.038),
-                "medium": (events.Jet.btagPNetCvB > 0.157)
-                & (events.Jet.btagPNetCvL > 0.109),
-                "tight": (events.Jet.btagPNetCvB > 0.116)
-                & (events.Jet.btagPNetCvL > 0.308),
-            },
-        }
-        return wps[year][wp]
-
-    def jet_particlenet_b(self, events, wp, year):
-        # https://indico.cern.ch/event/1304360/contributions/5518915/attachments/2692528/4678901/BTagPerf_230808_Summer22WPs.pdf
-        wps = {
-            "2022preEE": {
-                "loose": events.Jet.btagPNetB > 0.0438,
-                "medium": events.Jet.btagPNetB > 0.2383,
-                "tight": events.Jet.btagPNetB > 0.6939,
-                "verytight": events.Jet.btagPNetB > 0.8111,
-                "supertight": events.Jet.btagPNetB > 0.9625,
-            },
-            "2022postEE": {
-                "loose": events.Jet.btagPNetB > 0.0458,
-                "medium": events.Jet.btagPNetB > 0.2496,
-                "tight": events.Jet.btagPNetB > 0.7061,
-                "verytight": events.Jet.btagPNetB > 0.8184,
-                "supertight": events.Jet.btagPNetB > 0.9649,
-            },
-            "2023preBPix": {
-                "loose": events.Jet.btagPNetB > 0.0479,
-                "medium": events.Jet.btagPNetB > 0.2431,
-                "tight": events.Jet.btagPNetB > 0.6553,
-                "verytight": events.Jet.btagPNetB > 0.7667,
-                "supertight": events.Jet.btagPNetB > 0.9459,
-            },
-            "2023postBPix": {
-                "loose": events.Jet.btagPNetB > 0.048,
-                "medium": events.Jet.btagPNetB > 0.2435,
-                "tight": events.Jet.btagPNetB > 0.6563,
-                "verytight": events.Jet.btagPNetB > 0.7671,
-                "supertight": events.Jet.btagPNetB > 0.9483,
-            },
-        }
-        return wps[year][wp]
+        return get_pnet_ctag_mask(jets=events.Jet, wp=wp, year=year)

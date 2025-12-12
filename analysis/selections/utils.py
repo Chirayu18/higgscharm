@@ -286,3 +286,31 @@ def select_candidate_mass(cand, flavor):
         "2mu2e": (z1_flavor == 26) & (z2_flavor == 22),
     }
     return cand[flavor_masks[flavor]].p4.mass
+
+
+def select_candidate_cjet_dphi(cand, flavor, cjets):
+    z1_flavor = np.abs(cand.z1.l1.pdgId) + np.abs(cand.z1.l2.pdgId)
+    z2_flavor = np.abs(cand.z2.l1.pdgId) + np.abs(cand.z2.l2.pdgId)
+    flavor_masks = {
+        "4e": (z1_flavor == 22) & (z2_flavor == 22),
+        "4mu": (z1_flavor == 26) & (z2_flavor == 26),
+        "2e2mu": (z1_flavor == 22) & (z2_flavor == 26),
+        "2mu2e": (z1_flavor == 26) & (z2_flavor == 22),
+    }
+    if flavor != "inclusive":
+        hcand = cand[flavor_masks[flavor]]
+    else:
+        hcand = cand
+
+    hcand = ak.zip(
+        {
+            "pt": hcand.p4.pt,
+            "eta": hcand.p4.eta,
+            "phi": hcand.p4.phi,
+            "mass": hcand.p4.mass,
+        },
+        with_name="PtEtaPhiMCandidate",
+        behavior=candidate.behavior,
+    )
+    cjets = ak.firsts(cjets)
+    return hcand.delta_phi(cjets)

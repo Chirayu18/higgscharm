@@ -1,4 +1,5 @@
 import re
+import correctionlib
 import awkward as ak
 from pathlib import Path
 
@@ -13,7 +14,6 @@ POG_JSONS = {
     "electron_ss": ["EGM", "electronSS.json.gz"],
     "jetvetomaps": ["JME", "jetvetomaps.json.gz"],
     "jec": ["JME", "jet_jerc.json.gz"],
-    "ctag": ["BTV", "ctagging.json.gz"],
 }
 POG_YEARS = {
     "2022preEE": "2022_Summer22",
@@ -29,10 +29,19 @@ EGAMMA_YEARS = {
     "2023preBPix": "Data2023/ForPrompt23C",
     "2023postBPix": "Data2023/ForPrompt23D",
 }
-EGAMMA_JSONS = {
-    "electron_ss": ["SS", "electronSS.json.gz"]
+EGAMMA_JSONS = {"electron_ss": ["SS", "electronSS.json.gz"]}
+
+BTV_PATH = "/cvmfs/cms-griddata.cern.ch/cat/metadata/BTV"
+BTV_JSONS = {
+    "ctag": "ctagging.json.gz",
 }
-    
+BTV_YEARS = {
+    "2022preEE": "Run3-22CDSep23-Summer22-NanoAODv12/2025-08-20",
+    "2022postEE": "Run3-22EFGSep23-Summer22EE-NanoAODv12/2025-08-20",
+    "2023preBPix": "Run3-23CSep23-Summer23-NanoAODv12/2025-08-20",
+    "2023postBPix": "Run3-23DSep23-Summer23BPix-NanoAODv12/2025-08-20",
+}
+
 
 def get_pog_json(json_name: str, year: str) -> str:
     """
@@ -73,9 +82,39 @@ def get_egamma_json(year: str) -> str:
     return f"{Path.cwd()}/analysis/data/{year}_electronSS.json.gz"
 
 
-def get_muon_hlt_json(year: str)  -> str:
+def get_btv_json(json_name: str, year: str) -> str:
+    """
+    returns BTV json file path
+
+    Parameters:
+    -----------
+        json_name:
+            pog json name
+        year:
+            dataset year {2022preEE, 2022postEE, 2023preBPix, 2023postBPix}
+    """
+    if json_name in BTV_JSONS:
+        btv_json = BTV_JSONS[json_name]
+    else:
+        print(f"No json for {json_name}")
+    return f"{BTV_PATH}/{BTV_YEARS[year]}/{btv_json}"
+
+
+def get_pnet_ctag_mask(jets, wp, year):
+    cset = correctionlib.CorrectionSet.from_file(
+        get_btv_json(json_name="ctag", year=year)
+    )
+    wp_map = {"tight": "T", "medium": "M", "loose": "L"}
+    ctag_wps_evaluator = cset["particleNet_wp_values"]
+    pnet_cvsb_wp = ctag_wps_evaluator.evaluate(wp_map[wp], "CvB")
+    pnet_cvsl_wp = ctag_wps_evaluator.evaluate(wp_map[wp], "CvL")
+    pass_ctag_wp = (jets.btagPNetCvB > pnet_cvsb_wp) & (jets.btagPNetCvL > pnet_cvsl_wp)
+    return pass_ctag_wp
+
+
+def get_muon_hlt_json(year: str) -> str:
     return f"{Path.cwd()}/analysis/data/{year}_Muon_HLT_Eff.json"
-    
+
 
 def unflat_sf(sf: ak.Array, in_limit_mask: ak.Array, n: ak.Array):
     """

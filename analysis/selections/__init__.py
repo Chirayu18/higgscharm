@@ -9,6 +9,7 @@ from analysis.selections.utils import (
     make_cand,
     select_best_zzcandidate,
     select_candidate_mass,
+    select_candidate_cjet_dphi,
 )
 from analysis.selections.object_selections import ObjectSelector
 import analysis.selections.event_selections as event_selections

@@ -1,0 +1,184 @@
+datasets:
+  mc:
+    - higgs
+    - qqtozz
+    - ggtozz
+object_selection:
+  muons:
+    field: events.Muon
+    add_cut:
+      is_loose:
+        - events.Muon.pt > 5
+        - np.abs(events.Muon.eta) < 2.4
+        - np.abs(events.Muon.dxy) < 0.5
+        - np.abs(events.Muon.dz) < 1
+        - events.Muon.isGlobal | events.Muon.isTracker
+      is_relaxed:
+        - objects['muons'].is_loose
+        - np.abs(events.Muon.sip3d) < 4
+      is_tight:
+        - objects['muons'].is_loose
+        - objects['muons'].is_relaxed
+        - events.Muon.isPFcand | ((events.Muon.highPtId > 0) & (events.Muon.pt > 200))
+  electrons:
+    field: events.Electron
+    add_cut: 
+      is_loose:
+        - events.Electron.pt > 7
+        - np.abs(events.Electron.eta) < 2.5
+        - np.abs(events.Electron.dxy) < 0.5
+        - np.abs(events.Electron.dz) < 1
+      is_relaxed:
+        - objects['electrons'].is_loose
+        - np.abs(events.Electron.sip3d) < 4
+      is_tight:
+        - objects['electrons'].is_loose
+        - objects['electrons'].is_relaxed
+        - working_points.electron_id(events, 'bdt')
+    cuts:
+      - delta_r_higher(events.Electron, objects['muons'], 0.05)
+  fsr_photons:
+    field: events.FsrPhoton
+    cuts:
+      - events.FsrPhoton.pt > 2
+      - np.abs(events.FsrPhoton.eta) < 2.4
+      - events.FsrPhoton.relIso03 < 1.8
+  leptons:
+    field: select_zzto4l_leptons
+  zcandidates:
+    field: select_zcandidates 
+    add_cut:
+      is_ossf:
+        - objects['zcandidates'].l1.pdgId == -objects['zcandidates'].l2.pdgId
+      is_sr:
+        - objects['zcandidates'].is_ossf
+        - objects['zcandidates'].l1.is_tight & objects['zcandidates'].l2.is_tight
+    cuts: 
+      - (objects['zcandidates'].p4.mass > 12) & (objects['zcandidates'].p4.mass < 120)
+  zzcandidates:
+    field: select_zzcandidates
+    cuts:
+      - objects['zzcandidates'].z1.is_sr & objects['zzcandidates'].z2.is_sr
+      - (objects['zzcandidates'].z1.p4 + objects['zzcandidates'].z2.p4).mass > 70
+  best_zzcandidate:
+    field: select_best_zzcandidate
+  zz_mass_4mu:
+    field: select_mass_4mu_sr
+  zz_mass_4e:
+    field: select_mass_4e_sr
+  zz_mass_2mu2e:
+    field: select_mass_2mu2e_sr
+  zz_mass_2e2mu:
+    field: select_mass_2e2mu_sr
+  jets:
+    field: events.Jet
+    add_cut:
+      pass_loose_wp:
+        - working_points.jet_particlenet_c(events, 'loose', year)
+      pass_medium_wp:
+        - working_points.jet_particlenet_c(events, 'medium', year)
+      pass_tight_wp:
+        - working_points.jet_particlenet_c(events, 'tight', year)
+    cuts:
+      - events.Jet.pt > 20
+      - np.abs(events.Jet.eta) < 2.5
+      - working_points.jet_id(events, 'tightlepveto')
+      - delta_r_higher(events.Jet, objects['leptons'], 0.4)
+event_selection:
+  hlt_paths:
+    - SingleMu
+    - DiMu
+    - TriMu
+    - SingleEle
+    - DiEle
+    - MuEle
+  selections:
+    trigger: get_zzto4l_trigger_mask(events, hlt_paths, dataset, year)
+    lumimask: get_lumi_mask(events, year)
+    atleast_one_goodvertex: events.PV.npvsGood > 0
+    atleast_one_zz: ak.num(objects['zzcandidates']) >= 1
+  categories:
+    base:
+      - trigger
+      - lumimask
+      - atleast_one_goodvertex
+      - atleast_one_zz
+corrections:
+  objects:
+    - jec
+    - jet_vetomaps
+    - muon_ss
+    - electon_ss
+  event_weights:
+    genWeight: true
+    pileupWeight: true
+    partonshowerWeight: true
+    lhepdfWeight: true
+    lhescaleWeight: true
+    nnlopsWeight: true
+    electron:
+      - id: false
+      - reco: true
+      - trigger: false
+histogram_config:
+  add_weight: false
+  add_syst_axis: false
+  axes:
+    jet_pt:
+      type: Variable
+      edges:
+        - 20
+        - 30
+        - 50
+        - 70
+        - 100
+        - 140
+        - 200
+        - 300
+        - 600
+        - 1000
+      label: $p_T(j)$ [GeV]
+      expression: objects['jets'].pt
+    jet_abseta:
+      type: Regular
+      bins: 5
+      start: 0
+      stop: 2.5
+      label: $\eta(j)$
+      expression: np.abs(objects['jets'].eta)
+    jet_flavor:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: Jet HadronFlavour
+      expression: objects['jets'].hadronFlavour
+    jet_pass_loose_wp:
+      type: Boolean
+      label: pass loose WP
+      expression: objects['jets'].pass_loose_wp
+    jet_pass_medium_wp:
+      type: Boolean
+      label: pass medium WP
+      expression: objects['jets'].pass_medium_wp
+    jet_pass_tight_wp:
+      type: Boolean
+      label: pass tight WP
+      expression: objects['jets'].pass_tight_wp
+  layout:
+    eff_loose_wp:
+      - jet_pt
+      - jet_abseta
+      - jet_flavor
+      - jet_pass_loose_wp
+    eff_medium_wp:
+      - jet_pt
+      - jet_abseta
+      - jet_flavor
+      - jet_pass_medium_wp
+    eff_tight_wp:
+      - jet_pt
+      - jet_abseta
+      - jet_flavor
+      - jet_pass_tight_wp

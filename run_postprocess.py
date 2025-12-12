@@ -445,7 +445,9 @@ if __name__ == "__main__":
             pass_axis=args.pass_axis,
         )
         for category in categories:
-            logging.info(f"Plotting histograms for category: {category}")
+            logging.info(
+                f"Plotting histograms by '{group_by if group_by == 'process' else group_by['name']}' for category '{category}'"
+            )
             for variable in workflow_config.histogram_config.variables:
                 if args.pass_axis:
                     if variable == args.pass_axis:
@@ -468,14 +470,9 @@ if __name__ == "__main__":
                         yratio_limits=args.yratio_limits,
                         log=args.log,
                         extension=args.extension,
+                        blind=args.blind,
                     )
-            if args.workflow in [
-                "zplusl_os",
-                "zplusl_ss",
-                "zplusl_ss_maximal",
-                "zplusl_ss_minimal",
-                "zplusl_ss_intermediate",
-            ]:
+            if args.workflow.startswith("zplusl_"):
                 plotter.plot_fake_rate(category)
             subprocess.run(
                 f"tar -zcvf {output_dir}/{category}/{args.workflow}_{args.year}_plots.tar.gz {output_dir}/{category}/*.{args.extension}",

@@ -1,0 +1,3 @@
+[submodule "analysis/filesets/json"]
+	path = analysis/filesets/json
+	url = git@github.com:ua-cms/dataset.git

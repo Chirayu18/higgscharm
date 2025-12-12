@@ -171,6 +171,10 @@ def get_lumi_weight(year, sample, metadata):
 
 def save_cutflows(metadata, categories, sample, weight, output_dir):
     for category in categories:
+        if category not in metadata:
+            logging.info(f"zero events for category {category}")
+            continue
+
         logging.info(f"saving {sample} cutflow for category {category}")
 
         category_dir = Path(output_dir) / category

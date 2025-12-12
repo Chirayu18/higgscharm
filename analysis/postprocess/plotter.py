@@ -300,6 +300,21 @@ class CoffeaPlotter:
             }
             text_map = {**text_map, **zplusll_text_map}
 
+        if self.workflow == "zzto4l":
+            zzto4l_identifier = {
+                "zz_mass_4e": r"$4e$",
+                "zz_mass_4mu": r"$4\mu$",
+                "zz_mass_2mu2e": r"$2\mu 2e$",
+                "zz_mass_2e2mu": r"$2e2\mu$",
+            }
+            zzto4l_text = (
+                r"$ZZ\rightarrow$"
+                + zzto4l_identifier.get(variable, r"$4\ell$")
+                + " events"
+            )
+            zzto4l_text_map = {"zzto4l": zzto4l_text}
+            text_map = {**text_map, **zzto4l_text_map}
+
         ax.add_artist(
             AnchoredText(
                 text_map.get(self.workflow, f"{self.workflow} events") + "\n",
@@ -356,10 +371,17 @@ class CoffeaPlotter:
         # get nominal MC histograms
         mc_colors, mc_labels = [], []
         if self.group_by == "process":
-            nominal_mc_hists = list(histogram_info["mc"]["nominal"].values())
-            for process in histogram_info["mc"]["nominal"]:
-                mc_labels.append(process)
-                mc_colors.append(self.color_map[process])
+            if (self.workflow == "zzto4l") and ("zz_mass" in variable):
+                mc_labels = ["ggToZZ", "qqToZZ", "H(125)"]
+                nominal_mc_hists = [
+                    histogram_info["mc"]["nominal"][p] for p in mc_labels
+                ]
+                mc_colors = [self.color_map[p] for p in mc_labels]
+            else:
+                nominal_mc_hists = list(histogram_info["mc"]["nominal"].values())
+                for process in histogram_info["mc"]["nominal"]:
+                    mc_labels.append(process)
+                    mc_colors.append(self.color_map[process])
         else:
             nominal_mc_hists = []
             for cat in histogram_info["categories"]:
@@ -380,6 +402,8 @@ class CoffeaPlotter:
         variation_histograms = histogram_info["mc"]["variations"]
 
         # get Data histogram
+        if "data" not in self.datasets:
+            blind = True
         if not blind:
             data_histogram = histogram_info["data"]
             self.data_values = data_histogram.values()
@@ -410,8 +434,10 @@ class CoffeaPlotter:
         mc_hist_args.update(self.style["mc_hist_kwargs"])
         if mc_colors:
             mc_hist_args.update({"color": mc_colors})
+        if (self.workflow == "zzto4l") and ("zz_mass" in variable):
+            mc_hist_args["sort"] = None
         hep.histplot(**mc_hist_args)
-        if ("data" in self.datasets) or (not blind):
+        if not blind:
             hep.histplot(
                 data_histogram,
                 label="Data",
@@ -461,7 +487,7 @@ class CoffeaPlotter:
             formatter.set_scientific(False)
             ax.yaxis.set_major_formatter(formatter)
             ax.set_yscale("log")
-            ax.set_ylim(top=np.max(data_histogram.values()) * 100)
+            ax.set_ylim(top=np.max(mc_histogram.values()) * 100)
         else:
             ylim = ax.get_ylim()[1]
             ax.set_ylim(0, ylim + 0.2 * ylim)

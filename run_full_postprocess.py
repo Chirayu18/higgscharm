@@ -168,6 +168,70 @@ if __name__ == "__main__":
                         "2",
                     ]
                 )
+        elif args.workflow in ["zzto4l"]:
+            if not args.nopostprocess:
+                subprocess.run(
+                    [
+                        "python3",
+                        "run_postprocess.py",
+                        "-w",
+                        args.workflow,
+                        "-y",
+                        year,
+                        "--postprocess",
+                        "--output_format",
+                        args.output_format,
+                    ]
+                )
+            if not args.noplot:
+                subprocess.run(
+                    [
+                        "python3",
+                        "run_postprocess.py",
+                        "-w",
+                        args.workflow,
+                        "-y",
+                        year,
+                        "--plot",
+                        "--yratio_limits",
+                        "0",
+                        "2",
+                    ]
+                )
+                subprocess.run(
+                    [
+                        "python3",
+                        "run_postprocess.py",
+                        "-w",
+                        args.workflow,
+                        "-y",
+                        year,
+                        "--plot",
+                        "--log",
+                        "--group_by",
+                        '{"name": "leadingjet_flavour", "label": {"usdg": 0, "c": 4, "b": 5}}',
+                        "--yratio_limits",
+                        "0",
+                        "2",
+                    ]
+                )
+                subprocess.run(
+                    [
+                        "python3",
+                        "run_postprocess.py",
+                        "-w",
+                        args.workflow,
+                        "-y",
+                        year,
+                        "--plot",
+                        "--log",
+                        "--group_by",
+                        '{"name": "subleadingjet_flavour", "label": {"usdg": 0, "c": 4, "b": 5}}',
+                        "--yratio_limits",
+                        "0",
+                        "2",
+                    ]
+                )
         else:
             if not args.nopostprocess:
                 subprocess.run(
