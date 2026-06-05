@@ -3,10 +3,10 @@
   Run2022C: "Summer22_22Sep2023_V3"
   Run2022D: "Summer22_22Sep2023_V3"
 '2022postEE':
-  MC: "Summer22EE_22Sep2023_V3 Summer22EE_22Sep2023_JRV1"
-  Run2022E: "Summer22EE_22Sep2023_V3"
-  Run2022F: "Summer22EE_22Sep2023_V3"
-  Run2022G: "Summer22EE_22Sep2023_V3"
+  MC: "Summer22EE_22Sep2023_V4 Summer22EE_22Sep2023_JRV2"
+  Run2022E: "Summer22EE_22Sep2023_V4"
+  Run2022F: "Summer22EE_22Sep2023_V4"
+  Run2022G: "Summer22EE_22Sep2023_V4"
 '2023preBPix':
   MC: "Summer23Prompt23_V3 Summer23Prompt23_RunCv1234_JRV1"
   Run2023C: "Summer23Prompt23_V3"
