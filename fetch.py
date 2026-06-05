@@ -26,7 +26,7 @@ if __name__ == "__main__":
         "--image",
         dest="image",
         type=str,
-        default="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/coffeateam/coffea-dask-almalinux9:2025.10.1-py3.10",        
+        default="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/coffeateam/coffea-dask-almalinux9:2025.10.1-py3.10",
     )
     parser.add_argument(
         "--samples",
@@ -62,7 +62,15 @@ if __name__ == "__main__":
             subprocess.run(cmd, shell=True)
 
         samples_str = " ".join(args.samples) if args.samples else ""
-        cmd = f"singularity exec -B /afs -B /cvmfs {args.image} python3 -m analysis.filesets.make_filesets --year {args.year} --samples {samples_str}"
+        cmd = (
+            f"singularity exec "
+            f"--env PYTHONNOUSERSITE=1 "
+            f"-B /afs "
+            f"-B /cvmfs "
+            f"-B analysis/filesets/rucio_utils.py:/usr/local/lib/python3.10/site-packages/coffea/dataset_tools/rucio_utils.py "
+            f"{args.image} "
+            f"python3 -m analysis.filesets.make_filesets --year {args.year} --samples {samples_str}"
+        )
         subprocess.run(cmd, shell=True)
 
     if args.signal or args.onlysignal:

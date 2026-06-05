@@ -19,6 +19,7 @@ xroot_to_site =  {
     "root://gaexrdoor.ciemat.es:1094": "T2_ES_CIEMAT",
     "root://k8s-redir.ultralight.org:1094": "T2_US_Caltech",
     "root://se01.indiacms.res.in": "T2_IN_TIFR",
+    "root://t2se.indiacms.res.in": "T2_IN_TIFR",
     "root://cmsio2.rc.ufl.edu:1094": "T2_US_Florida",
     "root://t2dsk0011.cmsaf.mit.edu:1094": "T2_US_MIT",
     "root://xrootd.cmsaf.mit.edu:1094": "T2_US_MIT",
