@@ -247,6 +247,9 @@ def pt_resol(pt, eta, nL, cset, nested=False):
 
     pt_corr = filter_boundaries(pt_corr, pt, nested)
 
+    pt_filter = (pt_corr / pt > 2) | (pt_corr / pt < 0.1) | (pt_corr < 0)
+    pt_corr = ak.where(pt_filter, pt, pt_corr)
+
     return pt_corr
 
 
