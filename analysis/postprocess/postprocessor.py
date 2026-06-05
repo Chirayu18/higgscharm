@@ -44,9 +44,21 @@ def fill_histograms_from_parquets(
             sample_parquets = glob.glob(
                 f"{output_dir}/parquets_{sample}/{category}/*.parquet"
             )
-            sample_df = dd.read_parquet(
-                sample_parquets, engine="pyarrow", calculate_divisions=False
-            ).compute()
+            # skip empty partition parquets (can happen for low-stat selections);
+            # fall back to the first partition only if every one is empty
+            valid_parquets = [
+                f for f in sample_parquets if len(pd.read_parquet(f)) > 0
+            ]
+            if not valid_parquets:
+                logging.warning(
+                    f"All partition parquets empty for {sample} [{category}]; "
+                    f"using the first as a header-only fallback"
+                )
+                sample_df = pd.read_parquet(sample_parquets[0])
+            else:
+                sample_df = dd.read_parquet(
+                    valid_parquets, engine="pyarrow", calculate_divisions=False
+                ).compute()
             sample_df = sample_df.replace({None: np.nan})
             sample_df.to_parquet(
                 f"{output_dir}/{sample}.parquet", engine="pyarrow", index=False
@@ -59,7 +71,7 @@ def fill_histograms_from_parquets(
             if variable in sample_df.columns:
                 variable_array = sample_df[variable].values
             else:
-                logging.info(f"Could not found variable {variable} for sample {sample}")
+                logging.info(f"Could not find variable {variable} for sample {sample}")
             if variable_array.dtype.type is np.object_:
                 variable_array = np.array(
                     [x if x is not None else np.nan for x in variable_array], dtype=bool
@@ -176,9 +188,18 @@ def save_histograms_by_process(
             parquet_files += glob.glob(
                 f"{output_dir}/{sample}.parquet", recursive=True
             )
-        process_df = dd.read_parquet(
-            parquet_files, engine="pyarrow", calculate_divisions=False
-        ).compute()
+        # skip empty sample parquets; fall back to the first if all empty
+        valid_parquets = [f for f in parquet_files if len(pd.read_parquet(f)) > 0]
+        if not valid_parquets:
+            logging.warning(
+                f"All sample parquets empty for process {process}; "
+                f"using the first as a header-only fallback"
+            )
+            process_df = pd.read_parquet(parquet_files[0])
+        else:
+            process_df = dd.read_parquet(
+                valid_parquets, engine="pyarrow", calculate_divisions=False
+            ).compute()
         process_df.to_parquet(Path(output_dir) / f"{process}.parquet")
 
     # accumulate and save cutflows if requested
