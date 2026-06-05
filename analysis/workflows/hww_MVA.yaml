@@ -118,6 +118,7 @@ event_selection:
       - met_45
       - one_ll_pair
       - one_muon_one_electron
+      - atleast_one_cjet
 corrections:
   object:
     - jet
