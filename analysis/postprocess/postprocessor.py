@@ -20,7 +20,6 @@ from analysis.postprocess.utils import (
     get_process_dict,
     save_cutflows,
     accumulate_and_save_cutflows,
-    add_mva_labels,
 )
 
 
@@ -155,27 +154,8 @@ def save_histograms_by_process(
     categories: list,
     nocutflow: bool,
     output_format: str,
-    add_mva_labels_flag: bool = False,
 ):
-    """Accumulate and save all outputs for a given physics process.
-
-    Parameters
-    ----------
-    process : str
-        Process name (e.g., "tt", "DY+Jets")
-    output_dir : str
-        Output directory path
-    process_samples_map : dict
-        Mapping of process names to sample lists
-    categories : list
-        List of category names
-    nocutflow : bool
-        If True, skip saving cutflow tables
-    output_format : str
-        Output format ("coffea" or "parquet")
-    add_mva_labels_flag : bool
-        If True, add MVA training labels to parquet files (hww workflow only)
-    """
+    """Accumulate and save all outputs for a given physics process."""
     print_header(f"Processing {process} outputs")
 
     # accumulate and save all histograms into a single dictionary
@@ -199,12 +179,6 @@ def save_histograms_by_process(
         process_df = dd.read_parquet(
             parquet_files, engine="pyarrow", calculate_divisions=False
         ).compute()
-
-        # Add MVA training labels if requested (hww workflow)
-        if add_mva_labels_flag:
-            logging.info(f"Adding MVA labels for process {process}")
-            process_df = add_mva_labels(process_df, process)
-
         process_df.to_parquet(Path(output_dir) / f"{process}.parquet")
 
     # accumulate and save cutflows if requested

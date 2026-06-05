@@ -18,6 +18,9 @@ class WorkflowConfigBuilder:
             corrections_config=self.parse_corrections_config(),
             histogram_config=self.parse_histogram_config(),
             datasets=self.parse_datasets_config(),
+            mva=self.config.get("mva"),
+            inference=self.config.get("inference"),
+            combine=self.config.get("combine"),
         )
 
     def parse_object_selection(self):

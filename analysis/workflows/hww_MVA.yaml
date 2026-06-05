@@ -130,10 +130,11 @@ event_selection:
       - transverse_mass_signal
       - dilepton_mass_signal
 corrections:
-  objects:
-    - jec
-    - muon_ss
-    - electon_ss
+  object:
+    - jet
+    - muon
+    - electron
+  object_shifts: false    # set true to emit JES/JER/etc shifted parquets (one job, all shifts)
   event_weights:
     genWeight: true
     pileupWeight: true
@@ -698,3 +699,27 @@ histogram_config:
   add_syst_axis: true
   add_weight: true
 
+mva:
+  train_test_split:
+    field: event           # NanoAOD event id, written to parquet by base.py
+    test_modulo: 10        # ~10% held out for test, ~90% for b-hive train+valid
+    test_remainder: 9
+  labels:
+    # Order of these keys defines the one-hot class order (is_hplusc first, etc.).
+    # Must match the b-hive config's `truths` order (HPlusCHToWW_multiclass.yml).
+    # 6-class split: signal H+c separated from the rest of Higgs (higgsbkg).
+    process_groups:
+      hplusc:   [H+c]
+      higgsbkg: [H+b, ggH, VBF, ZH, ggZH, WH, ttHnonBB, ttHtoBB, H(125)]
+      tt:       [tt]
+      st:       [Single Top]
+      diboson:  [WW, WZ, ZZ, qqToZZ, ggToZZ]
+      vjets:    [DY+Jets, V+Jets]
+inference:
+  framework: b-hive
+  model_version: hww_multiclass_v11
+  model_path: /eos/user/c/cgupta/EPR_task/b-hive/output/TrainingTask/HPlusCHToWW_multiclass/hww_multiclass_v11/hww_multiclass_v11/SimpleMLP_MultiClass/epochs_30/nominal/best_model.pt
+  bhive_path: /eos/home-c/cgupta/HToWW/b-hive
+  bhive_config: HPlusCHToWW_multiclass
+  bhive_model_name: SimpleMLP_MultiClass
+  batch_size: 4096

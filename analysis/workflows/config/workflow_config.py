@@ -18,22 +18,32 @@ class WorkflowConfig:
         corrections_config,
         histogram_config,
         datasets,
+        mva=None,
+        inference=None,
+        combine=None,
     ):
         self.object_selection = object_selection
         self.event_selection = event_selection
         self.corrections_config = corrections_config
         self.histogram_config = histogram_config
         self.datasets = datasets
+        self.mva = mva
+        self.inference = inference
+        self.combine = combine
 
     def to_dict(self):
         """Convert WorkflowConfig to a dictionary."""
-        return {
+        d = {
             "object_selection": self.object_selection,
             "event_selection": self.event_selection,
             "corrections_config": self.corrections_config,
             "histogram_config": self.histogram_config.to_dict(),
             "datasets": self.datasets,
         }
+        for k in ("mva", "inference", "combine"):
+            if getattr(self, k) is not None:
+                d[k] = getattr(self, k)
+        return d
 
     def to_yaml(self):
         """Convert WorkflowConfig to a YAML string."""
