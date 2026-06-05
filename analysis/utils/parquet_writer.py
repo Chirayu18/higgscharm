@@ -6,7 +6,11 @@ from typing import List, Optional
 
 
 def dump_pa_table(
-    arrays: dict, fname: str, location: str, subdirs: Optional[List[str]] = None
+    arrays: dict,
+    fname: str,
+    location: str,
+    subdirs: Optional[List[str]] = None,
+    extra_metadata: Optional[dict] = None,
 ):
     subdirs = subdirs or []
     xrd_prefix = "root://"
@@ -44,6 +48,13 @@ def dump_pa_table(
     import pyarrow.parquet as pq
 
     table = pa.Table.from_pydict(out)
+    if extra_metadata:
+        existing = dict(table.schema.metadata or {})
+        for k, v in extra_metadata.items():
+            kk = k.encode() if isinstance(k, str) else k
+            vv = v.encode() if isinstance(v, str) else v
+            existing[kk] = vv
+        table = table.replace_schema_metadata(existing)
     if len(table) != 0:  # skip dataframes with empty entries
         pq.write_table(table, local_file)
         if xrootd:
@@ -125,9 +136,14 @@ def dump_parquet(
     output_location,
     shift,
 ):
+    from analysis.filesets.utils import get_dataset_config
+
+    is_mc = hasattr(events, "genWeight")
+    dataset = events.metadata["dataset"]
+
     if shift is None:
-        if hasattr(events, "genWeight"):
-            # add weights to variables_map
+        # nominal: full weight set (nominal + per-syst Up/Down columns)
+        if is_mc:
             variations = ["nominal", *weights_container.variations]
             for variation in variations:
                 if variation == "nominal":
@@ -140,12 +156,30 @@ def dump_parquet(
                     variables_map[f"weight_{variation}"] = weights_container.weight(
                         modifier=variation
                     )
-
-        # save parquet files
-        fname = (
-            events.behavior["__events_factory__"]._partition_key.replace("/", "_")
-            + ".parquet"
-        )
-        dataset = events.metadata["dataset"]
         subdirs = [workflow, year, dataset, category]
-        dump_pa_table(variables_map, fname, output_location, subdirs)
+    else:
+        # object shift: kinematics already reflect the shift; only the nominal
+        # weight is needed (weight-systematics are not crossed with object shifts).
+        # Output goes to its own <shift> subdir so the MVA/combine path can read
+        # each variation independently.
+        if is_mc:
+            variables_map["weight_nominal"] = weights_container.weight()
+        subdirs = [workflow, year, dataset, category, shift]
+
+    # Self-normalising metadata: per-shard sumw (genWeight unchanged by object
+    # shifts) + xsec/era from the dataset config. merge_parquets aggregates sumw
+    # across shards. Lets downstream compute lumi*xsec/sumw without a sidecar.
+    extra_metadata = None
+    if is_mc:
+        dataset_info = get_dataset_config(year).get(dataset, {})
+        extra_metadata = {
+            "sumw": str(float(ak.sum(events.genWeight))),
+            "xsec": str(dataset_info.get("xsec", "")),
+            "era":  str(dataset_info.get("era", "")),
+        }
+
+    fname = (
+        events.behavior["__events_factory__"]._partition_key.replace("/", "_")
+        + ".parquet"
+    )
+    dump_pa_table(variables_map, fname, output_location, subdirs, extra_metadata=extra_metadata)

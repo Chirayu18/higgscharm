@@ -121,6 +121,9 @@ class BaseProcessor(processor.ProcessorABC):
                 variables_map = {}
                 for variable, axis in self.histogram_config.axes.items():
                     variables_map[variable] = eval(axis.expression)[category_mask]
+                # NanoAOD event id — used by scripts/mva/prep_training_inputs.py
+                # for the deterministic train/test split
+                variables_map["event"] = events.event[category_mask]
 
                 if self.output_format == "coffea":
                     fill_histograms(

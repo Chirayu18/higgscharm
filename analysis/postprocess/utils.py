@@ -161,15 +161,56 @@ def find_kin_and_axis(processed_histograms, name="multiplicity"):
     raise ValueError(f"No histogram with a '{name}' axis found.")
 
 
+def merge_parquet_files(input_files, output_file):
+    """Concatenate parquet shards and aggregate self-normalising metadata.
+
+    Per-shard parquets carry sumw/xsec/era in their pyarrow schema metadata
+    (stamped by dump_parquet). pyarrow is used directly (not dask) so the
+    schema metadata survives the round-trip; sumw is summed across shards,
+    xsec/era pass through.
+    """
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    input_files = sorted(input_files)
+    if not input_files:
+        return False
+
+    tables = [pq.read_table(f) for f in input_files]
+    total_sumw, have_sumw, xsec_b, era_b = 0.0, False, None, None
+    for t in tables:
+        md = t.schema.metadata or {}
+        if b"sumw" in md:
+            try:
+                total_sumw += float(md[b"sumw"])
+                have_sumw = True
+            except ValueError:
+                pass
+        if xsec_b is None and md.get(b"xsec"):
+            xsec_b = md[b"xsec"]
+        if era_b is None and md.get(b"era"):
+            era_b = md[b"era"]
+
+    merged = pa.concat_tables(tables, promote_options="default")
+    new_md = dict(merged.schema.metadata or {})
+    if have_sumw:
+        new_md[b"sumw"] = str(total_sumw).encode()
+    if xsec_b is not None:
+        new_md[b"xsec"] = xsec_b
+    if era_b is not None:
+        new_md[b"era"] = era_b
+    merged = merged.replace_schema_metadata(new_md)
+
+    output_file = Path(output_file)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    pq.write_table(merged, output_file)
+    return True
+
+
 def merge_parquets(inpath, outpath, sample_name):
-    parquets = dd.read_parquet(
-        f"{inpath}/*.parquet", engine="pyarrow", calculate_divisions=False
-    )
-    df = parquets.compute()
     outpath = Path(outpath)
-    if not outpath.exists():
-        outpath.mkdir(parents=True, exist_ok=True)
-    df.to_parquet(f"{outpath}/{sample_name}.parquet", engine="pyarrow", index=False)
+    files = sorted(Path(inpath).glob("*.parquet"))
+    merge_parquet_files(files, outpath / f"{sample_name}.parquet")
 
 
 def accumulate_metadata(grouped_outputs, sample):
