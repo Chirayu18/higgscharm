@@ -23,8 +23,9 @@ from analysis.postprocess.utils import (clear_output_directory,
                                         format_cutflow_with_efficiency,
                                         get_results_report,
                                         load_processed_histograms,
-                                        merge_parquets_by_sample, print_header,
-                                        setup_logger)
+                                        merge_parquets_by_sample,
+                                        merge_shifted_parquets_by_sample,
+                                        print_header, setup_logger)
 from analysis.workflows.config import WorkflowConfigBuilder
 
 OUTPUT_DIR = Path.cwd() / "outputs"
@@ -224,6 +225,8 @@ if __name__ == "__main__":
         if args.output_format == "parquet":
             if not args.skipmerging:
                 merge_parquets_by_sample(output_dir, args.year, categories)
+                # object-shift parquets (object_shifts: true) -> <shift>/<sample>.parquet
+                merge_shifted_parquets_by_sample(output_dir, args.year, categories)
 
         for sample in grouped_outputs:
             save_histograms_by_sample(

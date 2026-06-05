@@ -290,6 +290,59 @@ def merge_parquets_by_sample(output_dir, year, categories):
                     merge_parquets(inpath, outpath, f"{name}_{i}")
 
 
+def merge_shifted_parquets_by_sample(output_dir, year, categories):
+    """Merge object-shift parquets into <output_dir>/<shift>/<sample>.parquet.
+
+    The runner (object_shifts: true) writes shifted kinematics to
+        <output_dir>/<dataset>/<category>/<shift>/<partition>.parquet
+    one level deeper than nominal. The nominal merge globs *.parquet
+    non-recursively, so it ignores these; this produces the per-sample,
+    per-shift merge the inference/combine path expects.
+
+    Only the primary (first) category is merged — mirroring the nominal
+    per-sample parquet, which is built from the first category
+    (see fill_histograms_from_parquets). Combine reads that inclusive
+    selection and channelises by argmax, so the signal-region category
+    is not merged here.
+    """
+    output_dir = Path(output_dir)
+    categories = list(categories)
+    if not categories:
+        return
+    primary = categories[0]
+    dataset_config = get_dataset_config(year)
+
+    # group partition folders (named <dataset>_<i>) back to their sample
+    shift_sample_files = defaultdict(list)
+    for dataset_dir in sorted(output_dir.iterdir()):
+        if not dataset_dir.is_dir():
+            continue
+        sample = dataset_dir.name
+        if sample not in dataset_config:
+            stripped = sample.rsplit("_", 1)[0]  # drop the _<i> partition suffix
+            if stripped in dataset_config:
+                sample = stripped
+            else:
+                continue
+        shift_root = dataset_dir / primary
+        if not shift_root.exists():
+            continue
+        for shift_dir in sorted(shift_root.iterdir()):
+            if not shift_dir.is_dir():
+                continue
+            files = sorted(str(p) for p in shift_dir.glob("*.parquet"))
+            if files:
+                shift_sample_files[(shift_dir.name, sample)].extend(files)
+
+    if not shift_sample_files:
+        return
+    print_header("Merging object-shift parquet outputs by sample")
+    for (shift, sample), files in sorted(shift_sample_files.items()):
+        out = output_dir / shift / f"{sample}.parquet"
+        logging.info(f"Merging {sample} [{shift}] ({len(files)} partitions) -> {out}")
+        merge_parquet_files(files, out)
+
+
 def accumulate_and_save_cutflows(process, process_samples_map, output_dir, categories):
     """Accumulate cutflows from all samples in a process and save them per category."""
     for category in categories:
