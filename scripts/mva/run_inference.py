@@ -54,7 +54,7 @@ def parse_args():
     )
     parser.add_argument(
         "--variation", default=None,
-        help="single variation to run (default: every entry in workflow.variations, "
+        help="single variation to run (default: nominal + discovered shift subdirs, "
              "or just 'nominal' if no variations: block exists)",
     )
     # All of these override the yaml's `inference:` block if set.
@@ -65,10 +65,20 @@ def parse_args():
     return parser.parse_args()
 
 
-def variations_for(cfg, requested: str | None) -> list[str]:
+def discover_variations(base_dir, requested: str | None) -> list[str]:
+    """Variations to score. Explicit --variation wins; otherwise 'nominal'
+    plus any object-shift subdirs that were produced (object_shifts: true)."""
     if requested is not None:
         return [requested]
-    return list(cfg.variations)
+    variations = ["nominal"]
+    for sub in sorted(p.name for p in base_dir.iterdir() if p.is_dir()):
+        # shift subdirs sit alongside the merged nominal parquets; skip the
+        # bookkeeping dirs (training/, mva/, filelists/, per-sample parquet dirs)
+        if sub in ("mva", "training", "filelists"):
+            continue
+        if (base_dir / sub / "mva").exists() or any((base_dir / sub).glob("*.parquet")):
+            variations.append(sub)
+    return variations
 
 
 def main():
@@ -92,9 +102,9 @@ def main():
     if not Path(model_path).exists():
         sys.exit(f"model checkpoint not found: {model_path}")
 
-    for variation in variations_for(cfg, args.variation):
-        # New layout: <year>/<variation>/. Fall back to <year>/ if absent.
-        var_dir = base_dir / variation if (base_dir / variation).exists() else base_dir
+    for variation in discover_variations(base_dir, args.variation):
+        # nominal merged parquets live at <year>/; shifts at <year>/<shift>/.
+        var_dir = base_dir / variation if variation != "nominal" else base_dir
         logging.info(f"=== inference: variation={variation}  dir={var_dir} ===")
         run_inference(
             output_dir=var_dir,

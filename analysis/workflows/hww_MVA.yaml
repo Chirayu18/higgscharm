@@ -723,3 +723,64 @@ inference:
   bhive_config: HPlusCHToWW_multiclass
   bhive_model_name: SimpleMLP_MultiClass
   batch_size: 4096
+combine:
+  # D = the network score for the class that wins argmax in each event.
+  # The score column written by run_inference.py is mva_score_<class>.
+  discriminant: argmax_winner_score
+  binning: {nbins: 20, start: 0.0, stop: 1.0}
+  # class order must match the inference model's output (CLASS_NAMES below).
+  classes: [hplusc, higgsbkg, tt, st, diboson, vjets]
+  signal: hplusc
+  # one channel per class; the event lands in the channel of its argmax class.
+  channels:
+    SR_hplusc:   hplusc
+    CR_higgsbkg: higgsbkg
+    CR_tt:       tt
+    CR_st:       st
+    CR_diboson:  diboson
+    CR_vjets:    vjets
+  # combine process -> higgscharm process names (parquet `process` groups).
+  process_map:
+    hplusc:   [H+c]
+    higgsbkg: [H+b, VBF, ZH, ggH, ggZH, ttHnonBB, ttHtoBB]
+    tt:       [tt]
+    st:       [Single Top]
+    diboson:  [WW, WZ, ZZ]
+    vjets:    [DY+Jets, V+Jets]
+  # weight-based shape nuisances (read weight_<name>Up/Down columns from parquet).
+  shape_systematics:
+    - pileup
+    - ps_isr
+    - ps_fsr
+    - scalevar_muR
+    - scalevar_muF
+    - scalevar_muR_muF
+    - muon_id
+    - muon_iso
+    - electron_id
+    - electron_reco_RecoBelow20
+    - electron_reco_Reco20to75
+    - electron_reco_RecoAbove75
+  # processes that skip the scalevar_* shape rows.
+  no_scalevar: [diboson]
+  # rate-only nuisances (AN-23-102 Table 16 + LumiPOG). value can be a float
+  # or an asymmetric "down/up" string.
+  lnN:
+    lumi_13p6TeV:        {hplusc: 1.014, higgsbkg: 1.014, tt: 1.014, st: 1.014, diboson: 1.014, vjets: 1.014}
+    xsec_st:             {st: "0.9873/1.0167"}
+    xsec_diboson:        {diboson: 1.037}
+    xsec_vjets:          {vjets: 1.027}
+    xsec_higgsbkg:       {higgsbkg: 1.05}
+    BR_HtoWW:            {hplusc: 1.01, higgsbkg: 1.01}
+    xsec_hplusc_PDF:     {hplusc: 1.06}
+    xsec_hplusc_4FS_5FS: {hplusc: 1.30}
+    alphaS_PDF:          {hplusc: 1.03, higgsbkg: 1.03, tt: 1.03, st: 1.03, diboson: 1.03, vjets: 1.03}
+  autoMCStats: 10
+  output:
+    root:     outputs/combine/v11_hplusc_v3.root
+    datacard: outputs/combine/v11_hplusc_v3.txt
+    workspace: v11_hplusc_v3.workspace.root
+  run:
+    asymptotic_limits: {asimov: true, blind: true}
+    multidimfit_scan:  {algo: grid, range_r: [-5, 5], points: 41}
+    impacts: {method: freeze_per_nuisance}
