@@ -579,7 +579,7 @@ histogram_config:
         - 180
         - 210
       label: Third leading jet $p_T$ [GeV]
-      expression: objects['jet2'].pt
+      expression: objects['jet3'].pt
     delta_R_ll_jet1:
       type: Regular
       bins: 20
@@ -622,6 +622,80 @@ histogram_config:
       stop: 3.14159
       label: $\Delta \phi(\ell \ell, j_3)$
       expression: objects['delta_phi_llPlusMET_jet3']
+    cjet_multiplicity_jet1:
+      type: Integer
+      start: 0
+      stop: 2
+      label: c-jet multiplicity(Jet 1)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=1)[:, 0].hadronFlavour == 4, False), int)
+    subleadingjet_flavour:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: HadronFlavour Jet 2
+      expression: ak.pad_none(objects['jets'], target=2)[:, 1].hadronFlavour
+    secondleadingjet_cvsl_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsL Jet 2 (PNet)
+      expression: ak.pad_none(objects['jets'], target=2)[:, 1].btagPNetCvL
+    secondleadingjet_cvsb_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsB Jet 2 (PNet)
+      expression: ak.pad_none(objects['jets'], target=2)[:, 1].btagPNetCvB
+    cjet_multiplicity_jet2:
+      type: Integer
+      start: 0
+      stop: 2
+      label: c-jet multiplicity(Jet 2)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=2)[:, 1].hadronFlavour == 4, False), int)
+    thirdleadingjet_flavour:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: HadronFlavour Jet 3
+      expression: ak.pad_none(objects['jets'], target=3)[:, 2].hadronFlavour
+    thirdleadingjet_cvsl_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsL Jet 3 (PNet)
+      expression: ak.pad_none(objects['jets'], target=3)[:, 2].btagPNetCvL
+    thirdleadingjet_cvsb_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsB Jet 3 (PNet)
+      expression: ak.pad_none(objects['jets'], target=3)[:, 2].btagPNetCvB
+    cjet_multiplicity_jet3:
+      type: Integer
+      start: 0
+      stop: 2
+      label: c-jet multiplicity(Jet 3)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 2].hadronFlavour == 4, False), int)
+    cjet_multiplicity_jet1and2:
+      type: Integer
+      start: 0
+      stop: 3
+      label: c-jet multiplicity(Jet 1 + Jet 2)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=2)[:, 0].hadronFlavour == 4, False), int)+ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=2)[:, 1].hadronFlavour == 4, False), int)
+    cjet_multiplicity_jet1and2and3:
+      type: Integer
+      start: 0
+      stop: 4
+      label: c-jet multiplicity(Jet 1 + Jet 2 + Jet 3)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 0].hadronFlavour == 4, False), int)+ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 1].hadronFlavour == 4, False), int)+ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 2].hadronFlavour == 4, False), int)
   layout:
     dilepton_mass:
       - dilepton_mass
@@ -654,6 +728,21 @@ histogram_config:
       - leadingjet_flavour
       - leadingjet_cvsb_pnet
       - leadingjet_cvsl_pnet
+      - cjet_multiplicity_jet1
+    secondleading_jet:
+      - subleadingjet_flavour
+      - secondleadingjet_cvsb_pnet
+      - secondleadingjet_cvsl_pnet
+      - cjet_multiplicity_jet2
+    thirdleading_jet:
+      - thirdleadingjet_flavour
+      - thirdleadingjet_cvsb_pnet
+      - thirdleadingjet_cvsl_pnet
+      - cjet_multiplicity_jet3
+    cjet_multiplicity_jet1and2:
+      - cjet_multiplicity_jet1and2
+    cjet_multiplicity_jet1and2and3:
+      - cjet_multiplicity_jet1and2and3
     SV:
       - nSV 
     delta_R_ll_l1:
@@ -698,6 +787,7 @@ histogram_config:
       - delta_phi_llPlusMET_jet3
   add_syst_axis: true
   add_weight: true
+
 
 mva:
   train_test_split:
