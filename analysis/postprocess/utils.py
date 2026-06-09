@@ -192,21 +192,50 @@ def accumulate_histograms(grouped_outputs, sample):
     return accumulate(grouped_histograms)
 
 
-def get_lumi_weight(year, sample, metadata):
+def read_parquet_sumw(output_dir, sample, category):
+    """Total generator sumw for a sample, read from the self-normalising parquet
+    metadata.
+
+    Each merged shard stores its read-chunk's pre-selection sumw in the parquet
+    schema metadata (the additive self-normalising scheme), so the dataset total
+    is just their sum over one category. This replaces the per-job .coffea
+    metadata['sumw']: resubmitted jobs can land their shards without a cutflow
+    .coffea, and keying normalisation off the parquet metadata makes it robust to
+    that (and matches the .coffea sumw to ~1% on samples that have both).
+    """
+    import pyarrow.parquet as pq
+
+    total = 0.0
+    shards = glob.glob(f"{output_dir}/parquets_{sample}/{category}/*.parquet")
+    for f in shards:
+        meta = pq.ParquetFile(f).schema_arrow.metadata
+        if meta and meta.get(b"sumw") is not None:
+            total += float(meta[b"sumw"])
+    return total
+
+
+def get_lumi_weight(year, sample, output_dir, categories):
     lumi_file = Path.cwd() / "analysis" / "postprocess" / "luminosity.yaml"
     with open(lumi_file, "r") as f:
         luminosities = yaml.safe_load(f)
 
     dataset_config = get_dataset_config(year)
     xsec = dataset_config[sample]["xsec"]
-    sumw = metadata["sumw"]
     weight = 1
+    sumw = None
     if dataset_config[sample]["era"] in ["mc", "signal"]:
+        # sumw from the parquet metadata (primary category), not the .coffea
+        sumw = read_parquet_sumw(output_dir, sample, list(categories)[0])
+        if not sumw:
+            raise ValueError(
+                f"zero/missing parquet sumw for MC sample {sample!r} in "
+                f"{output_dir}; cannot normalise"
+            )
         weight = (luminosities[year] * xsec) / sumw
 
     logging.info(f"luminosity [1/pb]: {luminosities[year]}")
     logging.info(f"xsec [pb]: {xsec}")
-    logging.info(f"sumw: {sumw}")
+    logging.info(f"sumw (parquet): {sumw}")
     logging.info(f"weight: {weight}")
 
     return weight

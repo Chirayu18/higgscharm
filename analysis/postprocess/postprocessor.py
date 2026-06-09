@@ -144,9 +144,11 @@ def save_histograms_by_sample(
     else:
         raise ValueError(f"Unsupported output_format: {output_format}")
 
-    # accumulate metadata and compute lumi weight
+    # accumulate metadata (still used for cutflows) and compute lumi weight.
+    # The weight's sumw now comes from the parquet metadata (see get_lumi_weight),
+    # not metadata["sumw"], so a missing per-job .coffea no longer breaks it.
     metadata = accumulate_metadata(grouped_outputs, sample)
-    weight = get_lumi_weight(year, sample, metadata)
+    weight = get_lumi_weight(year, sample, output_dir, categories)
 
     # scale histograms by lumi-xsec weight
     scaled_histograms = {
