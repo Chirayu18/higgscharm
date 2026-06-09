@@ -12,7 +12,17 @@ import numpy as np
 import pandas as pd
 
 
-def run_inference(output_dir, model_path, bhive_path, config_name, model_name):
+def run_inference(
+    output_dir,
+    model_path,
+    bhive_path,
+    config_name,
+    model_name,
+    split="full",
+    split_field="event",
+    split_modulo=None,
+    split_remainder=None,
+):
     """
     Load a trained b-hive model and add MVA score columns to parquet files.
 
@@ -31,7 +41,24 @@ def run_inference(output_dir, model_path, bhive_path, config_name, model_name):
         Name of the b-hive config (e.g. 'HPlusCHToWW_multiclass').
     model_name : str
         Name of the model class (e.g. 'SimpleMLP_MultiClass').
+    split : {'full', 'test', 'train'}
+        Which event subset to score. 'full' (default) scores every event and
+        writes to <output_dir>/mva/. 'test'/'train' score only the matching
+        half of the train/test split (using the same field % modulo == remainder
+        rule as prep_training_inputs.py) and write to <output_dir>/mva_<split>/,
+        so the full and split outputs never clobber each other.
+    split_field : str
+        Event-id column the split is computed on (default 'event').
+    split_modulo, split_remainder : int
+        Split parameters; test = (field % modulo == remainder), train = the
+        complement. Required when split != 'full'.
     """
+    if split not in ("full", "test", "train"):
+        raise ValueError(f"split must be full|test|train, got {split!r}")
+    if split != "full" and (split_modulo is None or split_remainder is None):
+        raise ValueError(
+            f"split={split!r} requires split_modulo and split_remainder"
+        )
     import torch
 
     # Add b-hive to sys.path so we can import its modules
@@ -69,9 +96,15 @@ def run_inference(output_dir, model_path, bhive_path, config_name, model_name):
     logging.info(f"Features ({len(features)}): {features}")
     logging.info(f"Classes: {class_names}")
 
-    # Create output directory for MVA-augmented parquets
-    mva_dir = Path(output_dir) / "mva"
+    # Create output directory for MVA-augmented parquets. Split outputs go to a
+    # sibling dir so the default 'full' mva/ (read by combine) is never clobbered.
+    mva_dir = Path(output_dir) / ("mva" if split == "full" else f"mva_{split}")
     mva_dir.mkdir(parents=True, exist_ok=True)
+    if split != "full":
+        logging.info(
+            f"split={split}: keeping events where {split_field} % {split_modulo} "
+            f"{'==' if split == 'test' else '!='} {split_remainder}"
+        )
 
     # Find process-level parquet files in output_dir (not in subdirectories)
     parquet_files = sorted(Path(output_dir).glob("*.parquet"))
@@ -84,6 +117,17 @@ def run_inference(output_dir, model_path, bhive_path, config_name, model_name):
     for pq_file in parquet_files:
         logging.info(f"Processing: {pq_file.name}")
         df = pd.read_parquet(pq_file)
+
+        # restrict to the requested train/test subset (full = no filter)
+        if split != "full" and len(df) > 0:
+            if split_field not in df.columns:
+                raise KeyError(
+                    f"{pq_file.name} has no {split_field!r} column needed for "
+                    f"split={split!r}"
+                )
+            is_test = (df[split_field].astype("int64") % split_modulo) == split_remainder
+            df = df[is_test] if split == "test" else df[~is_test]
+            df = df.reset_index(drop=True)
 
         if len(df) == 0:
             logging.warning(f"  Skipping empty file: {pq_file.name}")

@@ -57,6 +57,12 @@ def parse_args():
         help="single variation to run (default: nominal + discovered shift subdirs, "
              "or just 'nominal' if no variations: block exists)",
     )
+    parser.add_argument(
+        "--split", default="full", choices=["full", "test", "train"],
+        help="event subset to score: 'full' (default) -> <var>/mva/; "
+             "'test'/'train' -> <var>/mva_<split>/ using the mva.train_test_split "
+             "rule. Use 'test' for a leakage-free fit on the held-out events.",
+    )
     # All of these override the yaml's `inference:` block if set.
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--bhive-path", default=None)
@@ -102,16 +108,37 @@ def main():
     if not Path(model_path).exists():
         sys.exit(f"model checkpoint not found: {model_path}")
 
+    # train/test split params (only needed when --split != full); pulled from the
+    # same mva.train_test_split block prep_training_inputs.py uses, so the held-out
+    # set matches exactly.
+    split_field, split_modulo, split_remainder = "event", None, None
+    if args.split != "full":
+        if cfg.mva is None or "train_test_split" not in cfg.mva:
+            sys.exit(
+                f"--split {args.split} needs an 'mva.train_test_split' block in "
+                f"{args.workflow}.yaml"
+            )
+        sp = cfg.mva["train_test_split"]
+        split_field = sp.get("field", "event")
+        split_modulo = int(sp["test_modulo"])
+        split_remainder = int(sp["test_remainder"])
+
     for variation in discover_variations(base_dir, args.variation):
         # nominal merged parquets live at <year>/; shifts at <year>/<shift>/.
         var_dir = base_dir / variation if variation != "nominal" else base_dir
-        logging.info(f"=== inference: variation={variation}  dir={var_dir} ===")
+        logging.info(
+            f"=== inference: variation={variation}  split={args.split}  dir={var_dir} ==="
+        )
         run_inference(
             output_dir=var_dir,
             model_path=model_path,
             bhive_path=bhive_path,
             config_name=bhive_config,
             model_name=bhive_model_name,
+            split=args.split,
+            split_field=split_field,
+            split_modulo=split_modulo,
+            split_remainder=split_remainder,
         )
 
 
