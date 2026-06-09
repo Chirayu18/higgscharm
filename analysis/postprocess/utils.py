@@ -264,11 +264,21 @@ def get_process_dict(output_dir, year, categories):
                     if category in f:
                         if name not in process_dict[category]:
                             process_dict[category][name] = [str(folder_path)]
-            # case where there's only the category folder
+            # case where there's only the category folder (no per-job .coffea).
+            # Discover the sample from the parquet shards + dataset_config rather
+            # than relying on a sibling .coffea key already existing: resubmitted
+            # jobs can land their shards without the cutflow .coffea, which would
+            # otherwise silently drop the whole sample from the merge.
             else:
-                actual_name = name.rsplit("_", 1)[0]
-                if actual_name in process_dict[category]:
-                    process_dict[category][actual_name].append(str(folder_path))
+                if not glob.glob(f"{folder_path}/{category}/*.parquet"):
+                    continue
+                actual_name = (
+                    name if name in dataset_config else name.rsplit("_", 1)[0]
+                )
+                if actual_name not in dataset_config:
+                    continue
+                process_dict[category].setdefault(actual_name, [])
+                process_dict[category][actual_name].append(str(folder_path))
 
     return dict(process_dict)
 
@@ -324,6 +334,13 @@ def merge_shifted_parquets_by_sample(output_dir, year, categories):
                 sample = stripped
             else:
                 continue
+        # object-shift systematics are MC-only; data is the observation and
+        # carries no scale/resolution variation. The processor still emits
+        # lepton-shifted data parquets, so skip them here to keep the shift
+        # templates MC-only (otherwise the datacard builder would create bogus
+        # data variations).
+        if dataset_config[sample].get("era") not in ("mc", "signal"):
+            continue
         shift_root = dataset_dir / primary
         if not shift_root.exists():
             continue
