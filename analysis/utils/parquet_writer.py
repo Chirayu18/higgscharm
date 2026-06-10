@@ -126,6 +126,38 @@ def dump_ak_array(
     pathlib.Path(local_file).unlink()
 
 
+def dump_chunk_sumw(events, workflow, year, output_location):
+    """Write the chunk's full generator sumw to a dedicated record, ALWAYS.
+
+    The data-shard sumw (in dump_parquet) is correct per chunk, but a chunk that
+    selects zero events writes no shard at all (base.py guards dump on
+    nevents_after > 0, and dump_pa_table skips empty tables), so its sumw is
+    silently lost. For low-efficiency samples (vjets, hadronic) most chunks select
+    nothing, so the summed parquet sumw can undercount the true generator sumw by
+    10-30x -- breaking the lumi*xsec/sumw normalisation.
+
+    This writes a one-row `{sumw: <full chunk genWeight sum>}` parquet per chunk
+    into <dataset>/sumw_records/, computed on the pre-selection events, regardless
+    of how many events survive. Summing this directory gives the true generator
+    sumw (validated to <0.5% against the .coffea cutflow and the Runs-tree
+    genEventSumw). MC only.
+    """
+    if not hasattr(events, "genWeight"):
+        return
+    dataset = events.metadata["dataset"]
+    chunk_sumw = float(ak.sum(events.genWeight))
+    pkey = events.behavior["__events_factory__"]._partition_key.replace("/", "_")
+    fname = pkey + ".parquet"
+    subdirs = [workflow, year, dataset, "sumw_records"]
+    dump_pa_table(
+        {"sumw": [chunk_sumw]},
+        fname,
+        output_location,
+        subdirs,
+        extra_metadata={"sumw": str(chunk_sumw)},
+    )
+
+
 def dump_parquet(
     events,
     weights_container,

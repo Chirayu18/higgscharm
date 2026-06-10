@@ -6,6 +6,7 @@ from coffea.nanoevents import NanoAODSchema
 from coffea.analysis_tools import PackedSelection
 from coffea.nanoevents.methods.vector import LorentzVector
 from analysis.utils import dump_lumi, update, add_cutflow, dump_parquet
+from analysis.utils.parquet_writer import dump_chunk_sumw
 from analysis.workflows.config import WorkflowConfigBuilder
 from analysis.histograms import HistBuilder, fill_histograms
 
@@ -46,6 +47,11 @@ class BaseProcessor(processor.ProcessorABC):
 
     def process(self, events):
         self.is_mc = hasattr(events, "genWeight")
+        # Record this chunk's full generator sumw BEFORE any selection/veto, so the
+        # parquet normalisation is correct even for chunks that select zero events
+        # (which otherwise write no shard and lose their sumw). Pre-veto `events`.
+        if self.output_format == "parquet" and self.is_mc:
+            dump_chunk_sumw(events, self.workflow, self.year, self.output_location)
         vetoed_events, shifts = object_corrector_manager(
             events=events,
             year=self.year,
