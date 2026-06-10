@@ -25,6 +25,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+import glob
+
 import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
@@ -64,16 +66,34 @@ def load_lumi(year):
         return yaml.safe_load(f)[year]
 
 
-def read_scale(parquet_path, lumi):
-    """lumi*xsec/sumw from the parquet schema metadata; 1.0 for data."""
-    md = pq.read_table(parquet_path).schema.metadata or {}
-    era = md.get(b"era", b"").decode()
+def read_scale(sample, year, base_dir, lumi):
+    """lumi*xsec/sumw for an MC/signal sample; 1.0 for data.
+
+    xsec/era come from the dataset_config; sumw is summed from the merged
+    *nominal* parquet metadata at <base_dir>/parquets_<sample>/base/*.parquet.
+
+    NOTE: the mva/<sample>.parquet metadata cannot be used -- pandas.to_parquet
+    (in run_inference and the merge) strips the schema metadata, so era/xsec come
+    back empty and the old metadata-based read_scale silently returned 1.0 for
+    everything (no normalisation at all). sumw is generator-level and
+    shift-independent, so it is always read from the nominal base dir even when
+    scaling a shifted template.
+    """
+    info = get_dataset_config(year).get(sample, {})
+    era = info.get("era")
     if era not in ("mc", "signal"):
         return 1.0
-    sumw = float(md[b"sumw"])
-    xsec = float(md[b"xsec"])
+    xsec = float(info["xsec"])
+    sumw = 0.0
+    for f in glob.glob(f"{base_dir}/parquets_{sample}/base/*.parquet"):
+        md = pq.ParquetFile(f).schema_arrow.metadata
+        if md and md.get(b"sumw") is not None:
+            sumw += float(md[b"sumw"])
     if sumw == 0:
-        return 0.0
+        raise ValueError(
+            f"zero/missing parquet sumw for MC sample {sample!r} under "
+            f"{base_dir}/parquets_{sample}/base -- cannot normalise"
+        )
     return lumi * xsec / sumw
 
 
@@ -133,8 +153,8 @@ def to_uproot_th1(counts, sumw2, edges, name, title=None):
     )
 
 
-def process_sample(pq_path, classes, score_cols, channels_by_class, variations,
-                   nbins, edges, lumi):
+def process_sample(pq_path, sample, year, base_dir, classes, score_cols,
+                   channels_by_class, variations, nbins, edges, lumi):
     """Returns {channel: {var_name: (counts, sumw2)}} for one sample."""
     df = pd.read_parquet(pq_path)
     if len(df) == 0:
@@ -144,7 +164,7 @@ def process_sample(pq_path, classes, score_cols, channels_by_class, variations,
         raise KeyError(f"{pq_path.name} missing score columns {missing}; "
                        f"run scripts/mva/run_inference.py first")
 
-    scale = read_scale(pq_path, lumi)
+    scale = read_scale(sample, year, base_dir, lumi)
     scores = df[score_cols].to_numpy(dtype=np.float64)
     argmax = np.argmax(scores, axis=1)
     D = scores[np.arange(len(scores)), argmax]
@@ -327,7 +347,8 @@ def main():
             if not pq_path.exists():
                 logging.info(f"  [skip] {cp}/{sample}: no {pq_path.name}")
                 continue
-            result = process_sample(pq_path, classes, score_cols, channels_by_class,
+            result = process_sample(pq_path, sample, args.year, base_dir, classes,
+                                    score_cols, channels_by_class,
                                     variations, nbins, edges, lumi)
             if result is None:
                 continue
