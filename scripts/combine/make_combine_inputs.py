@@ -69,32 +69,24 @@ def load_lumi(year):
 def read_scale(sample, year, base_dir, lumi):
     """lumi*xsec/sumw for an MC/signal sample; 1.0 for data.
 
-    xsec/era come from the dataset_config; sumw is summed from the merged
-    *nominal* parquet metadata at <base_dir>/parquets_<sample>/base/*.parquet.
-
-    NOTE: the mva/<sample>.parquet metadata cannot be used -- pandas.to_parquet
-    (in run_inference and the merge) strips the schema metadata, so era/xsec come
-    back empty and the old metadata-based read_scale silently returned 1.0 for
-    everything (no normalisation at all). sumw is generator-level and
-    shift-independent, so it is always read from the nominal base dir even when
-    scaling a shifted template.
+    LOCAL/UNCOMMITTED: reads the true generator sumw from the sidecar
+    analysis/filesets/sumw_<year>.json (built by compute_sumw.py / the .coffea
+    cutflow) because the existing parquet metadata sumw undercounts low-efficiency
+    samples. The committed fix (dump_chunk_sumw) makes future runs' parquet sumw
+    correct on their own, at which point this can revert to the parquet metadata.
     """
     info = get_dataset_config(year).get(sample, {})
     era = info.get("era")
     if era not in ("mc", "signal"):
         return 1.0
     xsec = float(info["xsec"])
-    sumw = 0.0
-    for f in glob.glob(f"{base_dir}/parquets_{sample}/base/*.parquet"):
-        md = pq.ParquetFile(f).schema_arrow.metadata
-        if md and md.get(b"sumw") is not None:
-            sumw += float(md[b"sumw"])
-    if sumw == 0:
-        raise ValueError(
-            f"zero/missing parquet sumw for MC sample {sample!r} under "
-            f"{base_dir}/parquets_{sample}/base -- cannot normalise"
-        )
-    return lumi * xsec / sumw
+
+    import json
+    sidecar = json.load(open(Path.cwd() / "analysis" / "filesets" / f"sumw_{year}.json"))
+    sumw = sidecar.get(sample)
+    if not sumw:
+        raise ValueError(f"no sumw for MC sample {sample!r} in sumw_{year}.json")
+    return lumi * xsec / float(sumw)
 
 
 def gather_samples(year, process_map):
