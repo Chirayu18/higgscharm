@@ -152,9 +152,19 @@ def process_sample(pq_path, classes, score_cols, channels_by_class, variations,
     # argmax index -> channel name (class order == score_cols order)
     out = {ch: {} for ch in channels_by_class.values()}
     channel_idx = {channels_by_class[cls]: (argmax == i) for i, cls in enumerate(classes)}
+    nominal_w = df["weight_nominal"].to_numpy(dtype=np.float64)
     for var_name, col in variations:
         w = (df[col].to_numpy(dtype=np.float64) if col in df.columns
-             else df["weight_nominal"].to_numpy(dtype=np.float64)) * scale
+             else nominal_w)
+        # A non-finite systematic weight means the event has no info for that
+        # variation (e.g. diboson MC produced without PSWeights -> NaN ps_isr/fsr).
+        # Such events get no shift: fall back to their nominal weight, so the
+        # Up/Down template stays finite (otherwise text2workspace dies on a
+        # "Bogus norm nan" kappa).
+        bad = ~np.isfinite(w)
+        if bad.any():
+            w = np.where(bad, nominal_w, w)
+        w = w * scale
         for ch, mask in channel_idx.items():
             if mask.any():
                 out[ch][var_name] = fill_hist(D[mask], w[mask], edges)
