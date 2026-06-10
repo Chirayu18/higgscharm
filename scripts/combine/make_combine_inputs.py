@@ -130,6 +130,41 @@ def fill_hist(values, weights, edges):
     return h, h2
 
 
+def clip_negative_bins(proc_hists, channels, processes, variations, floor=1e-6):
+    """Floor non-positive template bins to a tiny positive value, coordinated
+    across the nominal and its systematic variations.
+
+    Negative-weight NLO MC (here: low-stat vjets) can give negative bin contents,
+    which combine cannot fit (a negative expected yield breaks the Poisson
+    likelihood / gives a "Bogus norm"). For each (channel, process):
+      * nominal bins <= floor are set to floor;
+      * a systematic bin <= floor is set to floor;
+      * crucially, wherever the *nominal* bin was floored, the matching
+        systematic bin is forced to floor too, so kappa = 1 there instead of an
+        exploding floor/large ratio that would crash text2workspace.
+
+    Only bins that are actually non-positive change; well-populated templates are
+    untouched. sumw2 (the stat error) is left as-is.
+    """
+    var_names = [v for v, _ in variations]
+    n_clipped = 0
+    for ch in channels:
+        for cp in processes:
+            nom_counts, nom_s2 = proc_hists[ch][cp]["nominal"]
+            clipped = nom_counts <= floor
+            n_clipped += int(clipped.sum())
+            new_nom = np.where(clipped, floor, nom_counts)
+            proc_hists[ch][cp]["nominal"] = (new_nom, nom_s2)
+            for v in var_names:
+                if v == "nominal":
+                    continue
+                c, s2 = proc_hists[ch][cp][v]
+                c = np.where(c <= floor, floor, c)
+                c = np.where(clipped, floor, c)  # nominal floored -> kappa = 1
+                proc_hists[ch][cp][v] = (c, s2)
+    return n_clipped
+
+
 def to_uproot_th1(counts, sumw2, edges, name, title=None):
     centers = 0.5 * (edges[:-1] + edges[1:])
     return uproot.writing.identify.to_TH1x(
@@ -357,6 +392,11 @@ def main():
                     acc_c, acc_s2 = proc_hists[ch][cp][v]
                     proc_hists[ch][cp][v] = (acc_c + hh[0], acc_s2 + hh[1])
             logging.info(f"  [ok]  {cp:<10s} {sample}")
+
+    # Floor non-positive template bins (negative-weight NLO MC, here low-stat
+    # vjets) so combine can fit them; nominal+systematics clipped together.
+    n_clip = clip_negative_bins(proc_hists, channels, processes, variations)
+    logging.info(f"\nClipped {n_clip} non-positive nominal bins to floor")
 
     root_path = Path.cwd() / combine["output"]["root"]
     datacard_path = Path.cwd() / combine["output"]["datacard"]
