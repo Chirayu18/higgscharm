@@ -203,9 +203,35 @@ def read_parquet_sumw(output_dir, sample, category):
     .coffea, and keying normalisation off the parquet metadata makes it robust to
     that (and matches the .coffea sumw to ~1% on samples that have both).
     """
+    import re
     import pyarrow.parquet as pq
 
+    # Primary: sum the per-chunk sumw_records written by dump_chunk_sumw. These are
+    # emitted on the PRE-selection events for EVERY read-chunk (including chunks that
+    # select zero events and therefore write no data shard), so their sum is the true
+    # generator sumw. Records live per partition: <output_dir>/<sample>_<n>/sumw_records/
+    # (split) or <output_dir>/<sample>/sumw_records/ (unsplit). Filenames are
+    # deterministic per chunk, so resubmits overwrite rather than double-count.
+    rec_dirs = glob.glob(f"{output_dir}/{sample}_*/sumw_records") + glob.glob(
+        f"{output_dir}/{sample}/sumw_records"
+    )
+    # guard against prefix collisions (e.g. DYto2L_2Jets_50 vs DYto2L_2Jets_50_ext):
+    # only accept "<sample>" or "<sample>_<digits>" partition dirs.
+    rec_dirs = [
+        d
+        for d in rec_dirs
+        if re.fullmatch(rf"{re.escape(sample)}(_\d+)?", Path(d).parent.name)
+    ]
     total = 0.0
+    rec_files = [f for d in rec_dirs for f in glob.glob(f"{d}/*.parquet")]
+    if rec_files:
+        for f in rec_files:
+            total += float(sum(pq.read_table(f, columns=["sumw"])["sumw"].to_pylist()))
+        return total
+
+    # Fallback (legacy / pre-fix parquets without sumw_records): the old additive
+    # per-shard metadata scheme. WARNING: undercounts low-efficiency samples because
+    # zero-selection chunks wrote no shard and thus no metadata sumw.
     shards = glob.glob(f"{output_dir}/parquets_{sample}/{category}/*.parquet")
     for f in shards:
         meta = pq.ParquetFile(f).schema_arrow.metadata

@@ -39,7 +39,9 @@ def dump_pa_table(
     )
     out = {}
     for variable, array in arrays.items():
-        if array.ndim == 2:
+        # plain Python lists (e.g. dump_chunk_sumw's {"sumw": [val]}) have no .ndim;
+        # only awkward arrays need the 2D->firsts flattening.
+        if hasattr(array, "ndim") and array.ndim == 2:
             out[variable] = ak.firsts(array)
         else:
             out[variable] = array
