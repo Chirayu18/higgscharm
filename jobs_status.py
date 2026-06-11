@@ -135,33 +135,28 @@ def get_jobs_info(job_dir, output_dir, log_dir, output_format, hours_ago=3):
 
         # Discover completed jobs by looking for output files.
         #
-        # Two on-disk layouts are supported:
-        #   * coffea  : each job writes a single "<dataset>_<jobnum>.coffea" file
-        #               directly under <output_dir>/<dataset>/. The job number is
-        #               recovered from the filename.
-        #   * parquet : each partition writes UUID-named shards under
-        #               <output_dir>/<partition>/<category>/ (e.g. .../base/),
-        #               where <partition> is "<dataset>_<jobnum>" for split samples
-        #               or "<dataset>" for a single, unsplit job. Filenames carry no
-        #               job number, so a partition counts as done when it has
-        #               produced at least one shard.
-        if output_format == "parquet":
-            jobnum_done[dataset] = []
-            for n in jobnum[dataset]:
-                part_dir = output_dir / f"{dataset}_{n}"
-                if not part_dir.exists():
-                    part_dir = output_dir / dataset  # unsplit single-job sample
-                # "*/" matches the category subdir (base, SR, ...); also accept
-                # shards written flat in the partition dir.
-                if list(part_dir.glob(f"*/*.{output_format}")) or list(
-                    part_dir.glob(f"*.{output_format}")
-                ):
-                    jobnum_done[dataset].append(n)
-        else:
-            output_files = list((output_dir / dataset).glob(f"*.{output_format}"))
-            jobnum_done[dataset] = [
-                f.stem.replace(f"{dataset}_", "") for f in output_files
-            ]
+        # Completion is keyed off the per-job ".coffea" END-marker, NOT the
+        # presence of output shards. submit.py writes "<dataset>_<jobnum>.coffea"
+        # via save(out, ...) ONLY after run_uproot_job fully completes (and it does
+        # so unconditionally, even for jobs that select zero events). This is the
+        # only reliable "job finished" signal:
+        #   * an OOM/killed job that wrote some parquet shards before dying leaves
+        #     NO .coffea -> correctly flagged missing (a shard-presence check would
+        #     wrongly mark it done and silently keep truncated output);
+        #   * a job that legitimately selects zero events writes a .coffea but no
+        #     shards -> correctly marked done (a shard-presence check would wrongly
+        #     flag low-efficiency samples as missing).
+        # Both parquet and coffea layouts write the same "<dataset>/<dataset>_<n>"
+        # .coffea path, so the discovery is identical for both.
+        marker_dir = output_dir / dataset
+        jobnum_done[dataset] = []
+        for n in jobnum[dataset]:
+            # split sample: "<dataset>/<dataset>_<n>.coffea";
+            # unsplit single-job fallback: "<dataset>/<dataset>.coffea"
+            if (marker_dir / f"{dataset}_{n}.coffea").exists() or (
+                marker_dir / f"{dataset}.coffea"
+            ).exists():
+                jobnum_done[dataset].append(n)
 
         # Collect recent error logs for this dataset
         x_hours_ago = datetime.now() - timedelta(hours=hours_ago)
