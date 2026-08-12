@@ -160,9 +160,13 @@ if __name__ == "__main__":
             files = query_das_user_dataset(query, instance=args.dbs_instance)
             if files:
                 print(f"  Found {len(files)} files")
-                # Prepend XRootD redirector for remote access
+                # Prepend XRootD redirector for remote access.
+                # USER (privately produced) datasets are NOT served by
+                # cms-xrd-global -- it returns "[3011] No servers are available
+                # to read the file". They live on the IIHE T2, which serves both
+                # the cgupta and tvanlaer H+c/H+b productions for every era.
                 new_dataset[dataset_key] = [
-                    f"root://cms-xrd-global.cern.ch/{f}" for f in files
+                    f"root://maite.iihe.ac.be:1094/{f}" for f in files
                 ]
             else:
                 print(f"  No files found for {dataset_key}")

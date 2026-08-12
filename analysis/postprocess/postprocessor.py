@@ -17,7 +17,6 @@ from analysis.postprocess.utils import (
     get_lumi_weight,
     accumulate_histograms,
     accumulate_metadata,
-    get_process_dict,
     save_cutflows,
     accumulate_and_save_cutflows,
 )
@@ -31,7 +30,6 @@ def fill_histograms_from_parquets(
     histogram_config = workflow_config.histogram_config
     variables = list(histogram_config.axes.keys())
     histograms = HistBuilder(workflow_config).build_histogram()
-    process_dict = get_process_dict(output_dir, year, categories)
 
     for category in categories:
         logging.info(f"Filling {sample} histograms")
@@ -49,6 +47,16 @@ def fill_histograms_from_parquets(
             valid_parquets = [
                 f for f in sample_parquets if len(pd.read_parquet(f)) > 0
             ]
+            if not sample_parquets:
+                # No shards at all: the selection kept zero events for this sample
+                # (all jobs finished - .coffea markers present - they just wrote
+                # nothing). Return correctly-shaped EMPTY histograms rather than
+                # crashing on sample_parquets[0].
+                logging.warning(
+                    f"No partition parquets for {sample} [{category}]; "
+                    f"selection kept zero events - returning empty histograms"
+                )
+                return copy.deepcopy(histograms)
             if not valid_parquets:
                 logging.warning(
                     f"All partition parquets empty for {sample} [{category}]; "
@@ -79,12 +87,20 @@ def fill_histograms_from_parquets(
             variables_map[variable] = variable_array
 
         # compute nominal weights
+        # NOTE: weight_negrw / weight_negrw_std are DIAGNOSTIC OUTPUT COLUMNS written
+        # by base.py::_score_negrw, not multiplicative weights - they are deliberately
+        # never added to the weights container. weight_negrw = 2*P+(x)-1 spans -1..+1
+        # and weight_negrw_std is an ensemble std-dev, so folding either into the
+        # nominal product silently destroys the affected samples (DY, V+Jets were
+        # suppressed ~156x). Exclude them here.
         partial_weights = list(
             set(
                 [
                     w.replace("Up", "").replace("Down", "")
                     for w in sample_df.columns
-                    if w.startswith("weight") and "nominal" not in w
+                    if w.startswith("weight")
+                    and "nominal" not in w
+                    and "negrw" not in w
                 ]
             )
         )
@@ -192,7 +208,17 @@ def save_histograms_by_process(
             )
         # skip empty sample parquets; fall back to the first if all empty
         valid_parquets = [f for f in parquet_files if len(pd.read_parquet(f)) > 0]
-        if not valid_parquets:
+        if not parquet_files:
+            # No sample in this process wrote a parquet => every sample kept zero
+            # events. Histograms/cutflows are already accumulated above; there is
+            # simply nothing to concatenate, so skip <process>.parquet entirely
+            # rather than crashing on parquet_files[0].
+            logging.warning(
+                f"No sample parquets for process {process}; all samples selected "
+                f"zero events - skipping {process}.parquet"
+            )
+            process_df = None
+        elif not valid_parquets:
             logging.warning(
                 f"All sample parquets empty for process {process}; "
                 f"using the first as a header-only fallback"
@@ -202,7 +228,8 @@ def save_histograms_by_process(
             process_df = dd.read_parquet(
                 valid_parquets, engine="pyarrow", calculate_divisions=False
             ).compute()
-        process_df.to_parquet(Path(output_dir) / f"{process}.parquet")
+        if process_df is not None:
+            process_df.to_parquet(Path(output_dir) / f"{process}.parquet")
 
     # accumulate and save cutflows if requested
     if not nocutflow:

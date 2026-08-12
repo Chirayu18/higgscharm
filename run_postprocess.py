@@ -104,6 +104,12 @@ def parse_arguments():
     parser.add_argument(
         "--skipmerging", action="store_true", help="Skip parquet outputs merging"
     )
+    parser.add_argument(
+        "--nworkers",
+        type=int,
+        default=0,
+        help="Threads for parallel parquet merging (0 = min(16, ncpu))",
+    )
     parser.add_argument("--blind", action="store_true", help="Blind data")
 
     return parser.parse_args()
@@ -224,9 +230,13 @@ if __name__ == "__main__":
 
         if args.output_format == "parquet":
             if not args.skipmerging:
-                merge_parquets_by_sample(output_dir, args.year, categories)
+                merge_parquets_by_sample(
+                    output_dir, args.year, categories, max_workers=args.nworkers
+                )
                 # object-shift parquets (object_shifts: true) -> <shift>/<sample>.parquet
-                merge_shifted_parquets_by_sample(output_dir, args.year, categories)
+                merge_shifted_parquets_by_sample(
+                    output_dir, args.year, categories, max_workers=args.nworkers
+                )
 
         for sample in grouped_outputs:
             save_histograms_by_sample(

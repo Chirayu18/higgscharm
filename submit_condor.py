@@ -94,7 +94,7 @@ if __name__ == "__main__":
         type=str,
         default="/cvmfs/unpacked.cern.ch/registry.hub.docker.com/coffeateam/coffea-base-almalinux9:0.7.30-py3.10",
     )
-    parser.add_argument("--jobflavor", dest="jobflavor", type=str, default="longlunch")
+    parser.add_argument("--jobflavor", dest="jobflavor", type=str, default="workday")
     parser.add_argument(
         "-m",
         "--memory",

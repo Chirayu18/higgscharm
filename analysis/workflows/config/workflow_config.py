@@ -21,6 +21,7 @@ class WorkflowConfig:
         mva=None,
         inference=None,
         combine=None,
+        negrw=None,
     ):
         self.object_selection = object_selection
         self.event_selection = event_selection
@@ -30,6 +31,7 @@ class WorkflowConfig:
         self.mva = mva
         self.inference = inference
         self.combine = combine
+        self.negrw = negrw
 
     def to_dict(self):
         """Convert WorkflowConfig to a dictionary."""
@@ -40,7 +42,7 @@ class WorkflowConfig:
             "histogram_config": self.histogram_config.to_dict(),
             "datasets": self.datasets,
         }
-        for k in ("mva", "inference", "combine"):
+        for k in ("mva", "inference", "combine", "negrw"):
             if getattr(self, k) is not None:
                 d[k] = getattr(self, k)
         return d

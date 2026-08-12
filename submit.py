@@ -99,7 +99,10 @@ if __name__ == "__main__":
             output_location=output_location,
         ),
         executor=processor.futures_executor,
-        executor_args={"schema": NanoAODSchema, "workers": 4},
+        # workers=2 (was 4): each worker holds a NanoAOD chunk in RAM; 4 pushed peak
+        # to ~5.9 GB and OOM-truncated heavy samples at the 2-3 GB condor request.
+        # 2 roughly halves peak (~3 GB) so jobs fit a modest request; ~2x slower/job.
+        executor_args={"schema": NanoAODSchema, "workers": 2},
     )
     savepath = f"{args.output_path}/{args.dataset}"
     if args.output_format in ["coffea", "parquet"]:

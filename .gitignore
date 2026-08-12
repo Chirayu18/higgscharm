@@ -1,1 +1,37 @@
 __pycache__/
+
+# ---- added 2026-08-12 ----
+# Loose parquets accidentally written into the repo root by local/test runs.
+# Real outputs live on EOS under outputs/<workflow>/<year>/.
+/*.parquet
+
+# Timestamped backups made before edits (.bak_pre_*, .bak_siteblacklist_*, etc).
+*.bak
+*.bak_*
+*.truncated_bak
+
+# Generated filesets + site maps -- regenerate with fetch.py / make_filesets.py.
+analysis/filesets/fileset_*_lxplus.json
+analysis/filesets/*_sites.yaml
+.sites_map.json
+
+# Analysis outputs
+outputs/
+*.log
+
+# combine outputs (regenerable)
+higgsCombine*.root
+fitDiagnostics*.root
+combine_logger.out
+combineCards*.txt
+
+# local scratch / one-off diagnostics
+cgupta.cc
+count_das_files.sh
+das_vs_processed.txt
+partition_fileset.json
+analysis/filesets/sumw_*.json
+
+# condor submission dirs + logs (generated per submission)
+condor/*/
+condor/logs/

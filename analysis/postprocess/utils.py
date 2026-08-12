@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import dask.dataframe as dd
@@ -203,9 +204,35 @@ def read_parquet_sumw(output_dir, sample, category):
     .coffea, and keying normalisation off the parquet metadata makes it robust to
     that (and matches the .coffea sumw to ~1% on samples that have both).
     """
+    import re
     import pyarrow.parquet as pq
 
+    # Primary: sum the per-chunk sumw_records written by dump_chunk_sumw. These are
+    # emitted on the PRE-selection events for EVERY read-chunk (including chunks that
+    # select zero events and therefore write no data shard), so their sum is the true
+    # generator sumw. Records live per partition: <output_dir>/<sample>_<n>/sumw_records/
+    # (split) or <output_dir>/<sample>/sumw_records/ (unsplit). Filenames are
+    # deterministic per chunk, so resubmits overwrite rather than double-count.
+    rec_dirs = glob.glob(f"{output_dir}/{sample}_*/sumw_records") + glob.glob(
+        f"{output_dir}/{sample}/sumw_records"
+    )
+    # guard against prefix collisions (e.g. DYto2L_2Jets_50 vs DYto2L_2Jets_50_ext):
+    # only accept "<sample>" or "<sample>_<digits>" partition dirs.
+    rec_dirs = [
+        d
+        for d in rec_dirs
+        if re.fullmatch(rf"{re.escape(sample)}(_\d+)?", Path(d).parent.name)
+    ]
     total = 0.0
+    rec_files = [f for d in rec_dirs for f in glob.glob(f"{d}/*.parquet")]
+    if rec_files:
+        for f in rec_files:
+            total += float(sum(pq.read_table(f, columns=["sumw"])["sumw"].to_pylist()))
+        return total
+
+    # Fallback (legacy / pre-fix parquets without sumw_records): the old additive
+    # per-shard metadata scheme. WARNING: undercounts low-efficiency samples because
+    # zero-selection chunks wrote no shard and thus no metadata sumw.
     shards = glob.glob(f"{output_dir}/parquets_{sample}/{category}/*.parquet")
     for f in shards:
         meta = pq.ParquetFile(f).schema_arrow.metadata
@@ -227,11 +254,28 @@ def get_lumi_weight(year, sample, output_dir, categories):
         # sumw from the parquet metadata (primary category), not the .coffea
         sumw = read_parquet_sumw(output_dir, sample, list(categories)[0])
         if not sumw:
-            raise ValueError(
-                f"zero/missing parquet sumw for MC sample {sample!r} in "
-                f"{output_dir}; cannot normalise"
+            # No shards at all => the selection legitimately kept zero events for
+            # this sample (jobs finished, .coffea markers present, nothing written).
+            # It contributes nothing, so a zero weight is correct - do not crash.
+            # Only raise if shards DO exist but carry no/zero sumw metadata, which
+            # would be a genuine normalisation problem.
+            shards = glob.glob(
+                f"{output_dir}/parquets_{sample}/{list(categories)[0]}/*.parquet"
             )
-        weight = (luminosities[year] * xsec) / sumw
+            if not shards:
+                logging.warning(
+                    f"{sample}: no parquet shards (zero events selected); "
+                    f"using weight 0"
+                )
+                sumw = 0.0
+                weight = 0.0
+            else:
+                raise ValueError(
+                    f"zero/missing parquet sumw for MC sample {sample!r} in "
+                    f"{output_dir}; cannot normalise"
+                )
+        else:
+            weight = (luminosities[year] * xsec) / sumw
 
     logging.info(f"luminosity [1/pb]: {luminosities[year]}")
     logging.info(f"xsec [pb]: {xsec}")
@@ -312,24 +356,51 @@ def get_process_dict(output_dir, year, categories):
     return dict(process_dict)
 
 
-def merge_parquets_by_sample(output_dir, year, categories):
-    """Merge parquet files from subfolders into a single output path per sample and category."""
+def _default_merge_workers(max_workers=None):
+    """Resolve the merge thread-pool size. The work is pyarrow read/concat/write
+    (GIL-releasing, EOS-I/O-bound), so oversubscribing cores is fine."""
+    if max_workers and max_workers > 0:
+        return max_workers
+    return min(16, (os.cpu_count() or 4))
+
+
+def merge_parquets_by_sample(output_dir, year, categories, max_workers=None):
+    """Merge parquet files from subfolders into a single output path per sample and category.
+
+    Each (sample, category, partition) merge writes an independent output file, so
+    they are dispatched across a thread pool. merge_parquet_files is pure pyarrow
+    (read_table/concat_tables/write_table) which releases the GIL, so threads give a
+    real speedup on the 100k+ shard merge without pickling tables across processes.
+    """
     print_header("Merging parquet outputs by sample")
     process_dict = get_process_dict(output_dir, year, categories)
+
+    # flatten to independent per-partition jobs
+    jobs = []
     for category in categories:
         for name, subfolders in process_dict[category].items():
+            if len(subfolders) == 0:
+                continue
+            logging.info(
+                f"Merging {name} outputs into {len(subfolders)} "
+                f"{'partition' if len(subfolders) == 1 else 'partitions'}"
+            )
             outpath = f"{output_dir}/parquets_{name}/{category}"
-            if len(subfolders) != 0:
-                logging.info(
-                    f"Merging {name} outputs into {len(subfolders)} "
-                    f"{'partition' if len(subfolders) == 1 else 'partitions'}"
-                )
-                for i, subfolder in enumerate(subfolders, start=1):
-                    inpath = f"{subfolder}/{category}"
-                    merge_parquets(inpath, outpath, f"{name}_{i}")
+            for i, subfolder in enumerate(subfolders, start=1):
+                jobs.append((f"{subfolder}/{category}", outpath, f"{name}_{i}"))
+
+    workers = _default_merge_workers(max_workers)
+    logging.info(f"Merging {len(jobs)} partitions with {workers} threads")
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = {
+            ex.submit(merge_parquets, inpath, outpath, sample_name): sample_name
+            for inpath, outpath, sample_name in jobs
+        }
+        for fut in as_completed(futures):
+            fut.result()  # surface any exception
 
 
-def merge_shifted_parquets_by_sample(output_dir, year, categories):
+def merge_shifted_parquets_by_sample(output_dir, year, categories, max_workers=None):
     """Merge object-shift parquets into <output_dir>/<shift>/<sample>.parquet.
 
     The runner (object_shifts: true) writes shifted kinematics to
@@ -383,10 +454,21 @@ def merge_shifted_parquets_by_sample(output_dir, year, categories):
     if not shift_sample_files:
         return
     print_header("Merging object-shift parquet outputs by sample")
-    for (shift, sample), files in sorted(shift_sample_files.items()):
+
+    def _merge_shift(item):
+        (shift, sample), files = item
         out = output_dir / shift / f"{sample}.parquet"
         logging.info(f"Merging {sample} [{shift}] ({len(files)} partitions) -> {out}")
         merge_parquet_files(files, out)
+
+    workers = _default_merge_workers(max_workers)
+    with ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [
+            ex.submit(_merge_shift, item)
+            for item in sorted(shift_sample_files.items())
+        ]
+        for fut in as_completed(futures):
+            fut.result()
 
 
 def accumulate_and_save_cutflows(process, process_samples_map, output_dir, categories):

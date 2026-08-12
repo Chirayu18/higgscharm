@@ -76,6 +76,20 @@ class CoffeaPlotter:
     ):
         """returns histogram by processes/variable/category"""
         # get variable histogram for nominal variation and category
+        # A process that never got filled has an EMPTY categorical variation axis;
+        # selecting "nominal" would raise KeyError. Return a zeroed projection of
+        # the right shape so the process just contributes nothing to the plot.
+        if "variation" in histogram.axes.name:
+            if variation not in list(histogram.axes["variation"]):
+                logging.warning(
+                    f"variation {variation!r} absent for {variable} "
+                    f"(empty histogram); contributing zeros"
+                )
+                empty = histogram[{"variation": sum}].project(variable)
+                empty = empty * 0
+                if isinstance(self.histogram_config.axes[variable], VariableAxis):
+                    empty = divide_by_binwidth(empty)
+                return empty
         selector = {"variation": variation}
         if "category" in histogram.axes.name:
             selector["category"] = category

@@ -136,12 +136,29 @@ TWminustoLNu2Q-ext:
   process: Single Top
   key: singletop-ext
   xsec: 9.434
-TbarBQ:
-  era: mc
-  query: TbarBQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
-  process: Single Top
-  key: singletop
-  xsec: 0.000
+# ---------------------------------------------------------------------------------
+# DISABLED 2026-08-12 -- TBbarQ / TbarBQ commented out entirely.
+#
+# They are the INCLUSIVE t-channel single-top samples and duplicate the phase space of
+# the decay-split TQbarto2Q/TQbartoLNu (top) and TbarQto2Q/TbarQtoLNu (antitop) samples
+# that ARE used. They carried xsec: 0.0 so they already contributed ZERO yield -- this
+# just stops fetching and processing them.
+#
+# Verified 2026-08-12: the decay-split samples already sum to the full t-channel rates --
+#   top     TQbarto2Q 97.614 + TQbartoLNu 47.372 = 144.99 pb  (13.6 TeV value ~145 pb)
+#   antitop TbarQto2Q 58.703 + TbarQtoLNu 28.488 =  87.19 pb  (13.6 TeV value  ~87 pb)
+#   ratio 1.66 = expected LHC top/antitop asymmetry; 2Q:LNu ~ 67:33 = W branching
+#
+# DO NOT re-enable with a real cross section -- that would DOUBLE-COUNT single top.
+# (The s-channel samples TBbartoLplusNuBbar / TbarBtoLminusNuB are a DIFFERENT process
+# and remain active with non-zero cross sections.)
+# ---------------------------------------------------------------------------------
+# TbarBQ:
+#   era: mc
+#   query: TbarBQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+#   process: Single Top
+#   key: singletop
+#   xsec: 0.000
 TbarWplusto2L2Nu:
   era: mc
   query: TbarWplusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
@@ -178,12 +195,29 @@ TbarWplustoLNu2Q-ext:
   process: Single Top
   key: singletop-ext
   xsec: 9.891
-TBbarQ:
-  era: mc
-  query: TBbarQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
-  process: Single Top
-  key: singletop
-  xsec: 0.000
+# ---------------------------------------------------------------------------------
+# DISABLED 2026-08-12 -- TBbarQ / TbarBQ commented out entirely.
+#
+# They are the INCLUSIVE t-channel single-top samples and duplicate the phase space of
+# the decay-split TQbarto2Q/TQbartoLNu (top) and TbarQto2Q/TbarQtoLNu (antitop) samples
+# that ARE used. They carried xsec: 0.0 so they already contributed ZERO yield -- this
+# just stops fetching and processing them.
+#
+# Verified 2026-08-12: the decay-split samples already sum to the full t-channel rates --
+#   top     TQbarto2Q 97.614 + TQbartoLNu 47.372 = 144.99 pb  (13.6 TeV value ~145 pb)
+#   antitop TbarQto2Q 58.703 + TbarQtoLNu 28.488 =  87.19 pb  (13.6 TeV value  ~87 pb)
+#   ratio 1.66 = expected LHC top/antitop asymmetry; 2Q:LNu ~ 67:33 = W branching
+#
+# DO NOT re-enable with a real cross section -- that would DOUBLE-COUNT single top.
+# (The s-channel samples TBbartoLplusNuBbar / TbarBtoLminusNuB are a DIFFERENT process
+# and remain active with non-zero cross sections.)
+# ---------------------------------------------------------------------------------
+# TBbarQ:
+#   era: mc
+#   query: TBbarQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+#   process: Single Top
+#   key: singletop
+#   xsec: 0.000
 WW:
   era: mc
   query: WW_TuneCP5_13p6TeV_pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
@@ -454,6 +488,36 @@ WminusH_Wto2Q_Hto2Wto2L2Nu:
   process: WH
   key: whtoww
   xsec: 0.008719124529
+# --- Added 2026-08-12: the two missing W-decay/charge combinations. -------------
+# The config previously had only WplusH(W->lnu) and WminusH(W->qq): one charge from
+# each W decay mode, an arbitrary pairing that dropped the physically-matched
+# partners. All four combinations exist in Run3Summer22EENanoAODv12 (verified via
+# dasgoclient), so this was a config gap, not a sample-availability limit.
+#
+# WminusH_WtoLNu is the important one: leptonic W-H is the 3-lepton final state,
+# the WH mode most likely to enter an e-mu selection, and by charge symmetry it
+# contributes at a comparable rate to the WplusH(W->lnu) already included.
+#
+# xsec provenance: the two pre-existing values decompose consistently as
+#   sigma(W+-H) x BR(H->WW->2l2nu) x BR(W->lnu | W->qq)
+# with BR(W->lnu)=0.3258, BR(W->qq)=0.6741 (PDG), giving
+#   sigma(W+H)=0.020335 pb, sigma(W-H)=0.012934 pb, ratio W+/W- = 1.572
+# which is the expected 1.5-1.6 for pp at 13.6 TeV. The two values below are that
+# same decomposition applied to the missing modes, so they share the existing
+# normalisation convention rather than being an independent estimate.
+WminusH_WtoLNu_Hto2Wto2L2Nu:
+  era: mc
+  query: WminusH_WtoLNu_Hto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-minlo-jhugen-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: WH
+  key: whtoww
+  xsec: 0.0   # UNVERIFIED -- see note above; must be set before use
+WplusH_Wto2Q_Hto2Wto2L2Nu:
+  era: mc
+  query: WplusH_Wto2Q_Hto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-minlo-jhugen-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: WH
+  key: whtoww
+  xsec: 0.0   # UNVERIFIED -- see note above; must be set before use
+# ------------------------------------------------------------------------------
 WminusHTo2Tau:
   era: mc
   query: WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
@@ -492,13 +556,18 @@ ttHtoBB:
   xsec: 0.332585344
 HplusCharm_HtoWW:
   era: mc
-  query: HPlusCharm_HToWW_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/cgupta-Run3Summer22NanoAODv13-HToWW-133X_mcRun3_2022_realistic_ForNanov13_v1-v4-8653679c76b04a5edd42171c9a5e3f96/USER
+  # postEE (Summer22EE) signal for the 2022postEE year — was previously the preEE
+  # (Summer22) campaign, which is the wrong era for this config.
+  query: HPlusCharm_HToWW_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/cgupta-Run3Summer22EENanoAODv13-HToWW-133X_mcRun3_2022_realistic_postEE_ForNanov13_v1-v1-0a036fde9f2884965a184344aedbed78/USER
   process: H+c
   key: hc
   xsec: 0.0022141
 HplusBottom_HtoWW:
   era: mc
-  query: HPlusBottom_HToWW_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/tvanlaer-Run3Summer22NanoAODv13-HToWW-133X_mcRun3_2022_realistic_ForNanov13_v1-v2-8653679c76b04a5edd42171c9a5e3f96/USER
+  # postEE (Summer22EE) signal for the 2022postEE year — was previously the preEE
+  # (Summer22, tvanlaer) campaign, which is the wrong era for this config. Those
+  # preEE parquets were moved to outputs/hww_combine_fixed/2022preEE/.
+  query: HPlusBottom_HToWW_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/cgupta-Run3Summer22EENanoAODv13-HToWW-133X_mcRun3_2022_realistic_postEE_ForNanov13_v1-v1-0a036fde9f2884965a184344aedbed78/USER
   process: H+b
   key: hb
   xsec: 0.016972

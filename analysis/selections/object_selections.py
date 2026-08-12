@@ -648,3 +648,77 @@ class ObjectSelector:
         self.objects["delta_R_ll_c"]= (
             ll_pair.delta_r(cjet)
         )
+
+    def select_gen_partons(self, obj_name):
+        # Generator-level LHE partons for the negative-weight reweighting fix
+        # (arXiv:2510.16217). g(x)=2*P+(x)-1 is learned from the hard-process
+        # parton kinematics, which live in LHEPart (status==1 = outgoing). We
+        # keep the outgoing quarks/gluons (|pdgId|<=5 or ==21; drops the status-1
+        # leptons), sort by pt, and expose the leading 5 as per-event candidates
+        # plus multiplicity / hardness-count / incoming-flavour scalars. Mirrors
+        # select_leading_jets. MC-only: guarded on LHEPart being present (data has
+        # no gen info, and this object is only requested by the gen-rw workflows).
+        if "LHEPart" not in self.events.fields or "LHE" not in self.events.fields:
+            # data (or a sample without LHE info): emit empty placeholders so the
+            # axis expressions still resolve to None -> firsts()==None columns.
+            z = ak.values_astype(self.events.event * 0, np.float32)
+            empty = ak.zip(
+                {"pt": z, "eta": z, "phi": z, "mass": z},
+                with_name="PtEtaPhiMCandidate", behavior=candidate.behavior,
+            )
+            for i in range(1, 6):
+                self.objects[f"genparton{i}"] = empty
+            for k in ["genparton_multiplicity", "genparton_n_pt20", "genparton_n_pt100",
+                      "genparton_n_pt200", "genparton_incoming1_pdgId",
+                      "genparton_incoming2_pdgId", "lhe_njets", "lhe_nb", "lhe_nc",
+                      "lhe_nuds", "lhe_nglu", "lhe_npnlo", "lhe_ht", "lhe_htincoming",
+                      "lhe_vpt", "lhe_alphas"]:
+                self.objects[k] = z
+            return
+
+        lhe = self.events.LHEPart
+        # outgoing partons: status==1, keep light quarks (b incl.) + gluon
+        out = lhe[lhe.status == 1]
+        is_parton = (np.abs(out.pdgId) <= 5) | (np.abs(out.pdgId) == 21)
+        partons = out[is_parton]
+        partons = partons[ak.argsort(partons.pt, ascending=False, axis=1)]
+
+        # multiplicity + hardness counts (the paper uses counts above thresholds)
+        self.objects["genparton_multiplicity"] = ak.num(partons)
+        self.objects["genparton_n_pt20"] = ak.sum(partons.pt > 20, axis=1)
+        self.objects["genparton_n_pt100"] = ak.sum(partons.pt > 100, axis=1)
+        self.objects["genparton_n_pt200"] = ak.sum(partons.pt > 200, axis=1)
+
+        # incoming-parton flavour flags (status==-1, the 2 initial-state partons)
+        inc = lhe[lhe.status == -1]
+        inc_pdg = ak.pad_none(inc.pdgId, target=2)
+        self.objects["genparton_incoming1_pdgId"] = ak.fill_none(inc_pdg[:, 0], 0)
+        self.objects["genparton_incoming2_pdgId"] = ak.fill_none(inc_pdg[:, 1], 0)
+
+        # leading-5 parton four-vectors as candidates (pad so [:, i] is safe)
+        partons = ak.pad_none(partons, target=5)
+        def make_candidate(p):
+            return ak.zip(
+                {"pt": p.pt, "eta": p.eta, "phi": p.phi, "mass": p.mass},
+                with_name="PtEtaPhiMCandidate", behavior=candidate.behavior,
+            )
+        for i in range(5):
+            self.objects[f"genparton{i + 1}"] = make_candidate(partons[:, i])
+
+        # LHE merging/kinematic summary scalars — the FxFx samples are inclusive
+        # (LHE.Njets~0.6, most events are 0/1-parton ME; extra jets from the shower),
+        # so per-event ME multiplicity is low and the paper's hand-built "parton
+        # counts / HT / V-pT" features are already provided by NanoAOD's LHE block.
+        # These are flat per-event scalars (dump directly, no firsts()). They are the
+        # backbone of x for P+(x); the leading-parton kinematics above supplement them.
+        lhe = self.events.LHE
+        self.objects["lhe_njets"] = ak.values_astype(lhe.Njets, np.float32)
+        self.objects["lhe_nb"] = ak.values_astype(lhe.Nb, np.float32)
+        self.objects["lhe_nc"] = ak.values_astype(lhe.Nc, np.float32)
+        self.objects["lhe_nuds"] = ak.values_astype(lhe.Nuds, np.float32)
+        self.objects["lhe_nglu"] = ak.values_astype(lhe.Nglu, np.float32)
+        self.objects["lhe_npnlo"] = ak.values_astype(lhe.NpNLO, np.float32)
+        self.objects["lhe_ht"] = lhe.HT
+        self.objects["lhe_htincoming"] = lhe.HTIncoming
+        self.objects["lhe_vpt"] = lhe.Vpt
+        self.objects["lhe_alphas"] = lhe.AlphaS

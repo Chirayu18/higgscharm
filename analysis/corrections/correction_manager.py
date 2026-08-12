@@ -3,6 +3,7 @@ from coffea.analysis_tools import Weights
 from analysis.filesets.utils import get_nano_version
 from analysis.corrections.muon import MuonWeights
 from analysis.corrections.ctag import CTagCorrector
+from analysis.corrections.ctag2d import CTag2DCorrector
 from analysis.corrections.jetvetomaps import jet_veto
 from analysis.corrections.pileup import add_pileup_weight
 from analysis.corrections.nnlops import add_nnlops_weight
@@ -13,6 +14,8 @@ from analysis.corrections.lhescale import add_scalevar_weight
 from analysis.corrections.met import apply_met_phi_corrections
 from analysis.corrections.muon_ss import apply_muon_ss_corrections
 from analysis.corrections.partonshower import add_partonshower_weight
+from analysis.corrections.toppt import add_toppt_weight
+from analysis.corrections.higgs_hf import add_higgs_hf_weight
 from analysis.corrections.electron_ss import apply_electron_ss_corrections
 
 
@@ -125,6 +128,28 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                         events=pruned_ev,
                         weights_container=weights_container,
                     )
+        if "toppTWeight" in weights_config:
+            if weights_config["toppTWeight"]:
+                # tt only (AN-23-102 line 566); the module no-ops on other datasets
+                add_toppt_weight(
+                    events=pruned_ev,
+                    weights_container=weights_container,
+                    shift=shift,
+                    dataset=dataset,
+                )
+        if "higgsHFWeight" in weights_config:
+            if weights_config["higgsHFWeight"]:
+                # ggH/VBF only; per-event, keyed on gen-jet heavy flavour, so it
+                # replaces the mis-scoped flat lnN on the merged higgsbkg group
+                add_higgs_hf_weight(
+                    events=pruned_ev,
+                    weights_container=weights_container,
+                    shift=shift,
+                    dataset=dataset,
+                    # charm: AN-23-102 scopes this to the ggH+HF composition and our
+                    # signal is H+c, so the c-flavour variant is the relevant one.
+                    flav="c",
+                )
         if "muon" in weights_config:
             if weights_config["muon"]:
                 if "selected_muons" in pruned_ev.fields:
@@ -205,6 +230,16 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                 ctag_corrector.add_ctag_weights(flavor="b")
                 ctag_corrector.add_ctag_weights(flavor="c")
                 ctag_corrector.add_ctag_weights(flavor="light")
+
+        if "ctagging_2d" in weights_config:
+            if weights_config["ctagging_2d"]:
+                ctag2d_corrector = CTag2DCorrector(
+                    events=pruned_ev,
+                    weights=weights_container,
+                    year=year,
+                    shift=shift,
+                )
+                ctag2d_corrector.add_weights()
     else:
         weights_container.add("weight", np.ones(len(pruned_ev)))
     return weights_container

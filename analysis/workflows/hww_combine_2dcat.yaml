@@ -1,0 +1,1173 @@
+datasets:
+  # MC-only rerun (hww_combine_fixed): collision data intentionally omitted so
+  # get_datasets_to_run_over yields MC+signal only. Combine uses Asimov (obs -1),
+  # so data is not needed for the clean re-production.
+  # Collision data, added 2026-07-29 for the data/MC closure check.
+  # (The limit itself is Asimov/blind, so data is not used for combine.)
+  data:
+    - muon
+    - electron
+    - muon_electron
+  mc:
+    - dy_nlo
+    - tt
+    - singletop
+    - ww
+    - wz
+    - zz
+    - wg
+    - v+jets
+    - gghtoww
+    - vbfhtoww
+    - zh
+    - ggzh
+    - gghto2tau
+    - vbfhto2tau
+    - whto2tau
+    - whtoww
+    - tthnonbb
+    - tthtobb
+    - hc
+    - hb
+# Negative-weight reweighting (arXiv:2510.16217). When present, base.py::_score_negrw
+# loads this ensemble and dumps weight_negrw = 2*P+(x)-1 (+ weight_negrw_std) for the
+# datasets listed EXACTLY in `datasets:` (exact match, not substring -- a "WtoLNu"
+# substring would also catch the WH signal WplusH_WtoLNu_Hto2Wto2L2Nu). g(x) is a
+# generator property; the SR eμ events are disjoint-by-construction from the
+# veto_emu_sr training region the ensemble was trained on.
+negrw:
+  # NOTE: must be on AFS, not EOS -- the worker singularity container cannot read
+  # /eos/user paths (PermissionError), but it reads AFS fine (submit.sh cds into the
+  # AFS repo). Master copy of this file lives in negrw_out_img/ on EOS.
+  model: /afs/cern.ch/user/c/cgupta/negrw_model/negrw_models.joblib
+  datasets:
+    - DYto2L_2Jets_10to50
+    - DYto2L_2Jets_50
+    - WtoLNu_2Jets
+object_selection:
+  muons:
+    field: events.Muon
+    cuts:
+      - events.Muon.pt > 10
+      - np.abs(events.Muon.eta) < 2.4
+      - working_points.muon_iso(events, 'tight')
+      - working_points.muon_id(events, 'tight')
+  electrons:
+    field: events.Electron
+    cuts:
+      - events.Electron.pt > 10
+      - np.abs(events.Electron.eta) < 2.5
+      - working_points.electron_id(events, 'wp80iso')
+      - delta_r_higher(events.Electron, objects['muons'], 0.4)
+  leptons:
+    field: select_hww_leptons
+  ll_pair:
+    field: select_hww_ll_pair
+    cuts:
+      - objects["ll_pair"].l1.pt > 20
+      - objects["ll_pair"].l2.pt > 10
+      - (objects["ll_pair"].l1 + objects["ll_pair"].l2).pt > 30
+      - (objects["ll_pair"].l1.charge + objects["ll_pair"].l2.charge) == 0
+      - (objects["ll_pair"].l1 + objects["ll_pair"].l2).mass > 12
+  jets:
+    field: events.Jet
+    cuts:
+      - events.Jet.pt > 30
+      - np.abs(events.Jet.eta) < 2.4
+      - working_points.jet_id(events, year, 'tightlepveto')
+      - delta_r_higher(events.Jet, objects['leptons'], 0.4)
+  eventJets:
+    field: events.Jet
+  cjets:
+    field: events.Jet
+    cuts:
+      - events.Jet.pt > 20
+      - np.abs(events.Jet.eta) < 2.4
+      - working_points.jet_id(events, year, 'tightlepveto')
+      - working_points.jet_ctagging(events, 'medium', year)
+      - delta_r_higher(events.Jet, objects['leptons'], 0.4)
+  candidate_cjet:
+    field: select_candidate_cjet
+  met:
+    field: events.PuppiMET
+  mTll:
+    field: select_hww_mTll
+  mTl1:
+    field: select_hww_mTl1
+  mTl2: 
+    field: select_hww_mTl2
+  leading_jets:
+    field: select_leading_jets
+  delta_phi:
+    field: select_delta_phi
+  delta_R:
+    field: select_delta_R
+  # generator-level partons for the neg-weight reweighting features (see negrw: block)
+  gen_partons:
+    field: select_gen_partons
+event_selection:
+  hlt_paths:
+    MuonEG:
+      - MuEle
+    Muon:
+      - SingleMu
+    EGamma:
+      - SingleEle
+  selections:
+    trigger: get_trigger_mask(events, hlt_paths, dataset, year)
+    atleast_one_goodvertex: events.PV.npvsGood > 0
+    lumimask: get_lumi_mask(events, year)
+    met_filters: get_metfilters_mask(events, year)
+    met_45: objects['met'].pt > 45
+    one_electron: ak.num(objects['electrons']) == 1
+    one_muon: ak.num(objects['muons']) == 1
+    one_muon_one_electron: ak.all(((abs(objects['ll_pair'].l1.pdgId) == 11) & (abs(objects['ll_pair'].l2.pdgId) == 13)) | ((abs(objects['ll_pair'].l1.pdgId) == 13) & (abs(objects['ll_pair'].l2.pdgId) == 11)), axis=1)
+    one_ll_pair: ak.num(objects['ll_pair']) == 1
+    atleast_one_cjet: ak.num(objects['cjets']) > 0
+    atleast_two_cjets: ak.num(objects['cjets']) > 1
+    zero_jets: ak.num(objects['jets']) == 0
+    zero_eventJets: ak.num(objects['eventJets']) == 0
+    atleast_one_jet: ak.num(objects['jets']) > 0
+    transverse_mass_signal: ak.all((objects["mTl2"] > 30) & (objects["mTll"] > 60), axis=1)
+    transverse_mass_top_CR: ak.all((objects["mTl2"] > 30) & (objects["mTll"] <= 60), axis=1)
+    dilepton_mass_signal: ak.all((objects["ll_pair"].l1 + objects["ll_pair"].l2).mass <= 72, axis=1)
+    dilepton_mass_top_CR: ak.all((objects["ll_pair"].l1 + objects["ll_pair"].l2).mass > 72, axis=1)
+  categories:
+    base:
+      - atleast_one_goodvertex
+      - lumimask
+      - met_filters
+      - trigger
+      - met_45
+      - one_ll_pair
+      - one_muon_one_electron
+      - atleast_one_cjet
+corrections:
+  object:
+    - jet
+    - muon
+    - electron
+  object_shifts: true    # set true to emit JES/JER/etc shifted parquets (one job, all shifts)
+  event_weights:
+    genWeight: true
+    pileupWeight: true
+    partonshowerWeight: true
+    lhepdfWeight: true
+    lhescaleWeight: true
+    nnlopsWeight: true
+    ctagging_2d: true    # PNet 2D pseudo-continuous HF-tag SF (CTag2DCorrector) -> CMS_ctag2d_2022
+    # top-pT reweighting, tt only (AN-23-102 Table 16 + line 566). Nominal stays at 1
+    # and the full size of the correction is the +-1 sigma interval (AN-24-091 convention),
+    # so `rate_tt` is still fitted against an un-reweighted nominal.
+    toppTWeight: true
+    # Higgs + heavy-flavour composition, ported from HiggsDNA's Higgs_plus_HF_syst.
+    # Per-event +-50% on ggH/VBF events containing >=1 heavy-flavour GEN jet
+    # (pt>25, |eta|<2.5). Replaces the mis-scoped flat `flavor_composition_ggH`
+    # lnN -- see the lnN block below.
+    higgsHFWeight: true
+    muon:
+      - id: tight
+      - iso: tight
+      # HLT efficiency SFs (AN-23-102 Table 16) remain DISABLED by explicit decision
+      # (2026-08-11). Note this means trigger SFs are not applied at all, so the
+      # nominal weights carry no trigger correction -- a known, accepted gap.
+      - trigger: false
+    electron:
+      - id: wp80iso
+      - reco: true
+      - trigger: false
+histogram_config:
+  axes:
+    # ------------------------------------------------------------------
+    # Generator-level features for the neg-weight reweighting (arXiv:2510.16217).
+    # Same 20 features the P+(x) ensemble was trained on (hww_genrw_train). They are
+    # dumped as parquet columns and consumed in base.py::_score_negrw to produce the
+    # weight_negrw / weight_negrw_std columns. Histogram ranges are only for QA plots.
+    # ------------------------------------------------------------------
+    lhe_njets:
+      type: Integer
+      start: 0
+      stop: 6
+      label: LHE $N_{jets}$
+      expression: objects['lhe_njets']
+    lhe_nb:
+      type: Integer
+      start: 0
+      stop: 4
+      label: LHE $N_b$
+      expression: objects['lhe_nb']
+    lhe_nc:
+      type: Integer
+      start: 0
+      stop: 4
+      label: LHE $N_c$
+      expression: objects['lhe_nc']
+    lhe_nuds:
+      type: Integer
+      start: 0
+      stop: 6
+      label: LHE $N_{uds}$
+      expression: objects['lhe_nuds']
+    lhe_nglu:
+      type: Integer
+      start: 0
+      stop: 6
+      label: LHE $N_{glu}$
+      expression: objects['lhe_nglu']
+    lhe_npnlo:
+      type: Integer
+      start: 0
+      stop: 4
+      label: LHE $N_p^{NLO}$
+      expression: objects['lhe_npnlo']
+    lhe_ht:
+      type: Regular
+      bins: 60
+      start: 0
+      stop: 600
+      label: LHE $H_T$ [GeV]
+      expression: objects['lhe_ht']
+    lhe_htincoming:
+      type: Regular
+      bins: 60
+      start: 0
+      stop: 600
+      label: LHE $H_T^{incoming}$ [GeV]
+      expression: objects['lhe_htincoming']
+    lhe_vpt:
+      type: Regular
+      bins: 60
+      start: 0
+      stop: 600
+      label: LHE $p_T(V)$ [GeV]
+      expression: objects['lhe_vpt']
+    lhe_alphas:
+      type: Regular
+      bins: 50
+      start: 0.1
+      stop: 0.2
+      label: LHE $\alpha_S$
+      expression: objects['lhe_alphas']
+    genparton_multiplicity:
+      type: Integer
+      start: 0
+      stop: 6
+      label: outgoing parton multiplicity
+      expression: objects['genparton_multiplicity']
+    genparton_n_pt20:
+      type: Integer
+      start: 0
+      stop: 6
+      label: partons $p_T>20$
+      expression: objects['genparton_n_pt20']
+    genparton_n_pt100:
+      type: Integer
+      start: 0
+      stop: 4
+      label: partons $p_T>100$
+      expression: objects['genparton_n_pt100']
+    genparton_n_pt200:
+      type: Integer
+      start: 0
+      stop: 4
+      label: partons $p_T>200$
+      expression: objects['genparton_n_pt200']
+    genparton_incoming1_pdgId:
+      type: Regular
+      bins: 47
+      start: -23
+      stop: 24
+      label: incoming parton 1 pdgId
+      expression: objects['genparton_incoming1_pdgId']
+    genparton_incoming2_pdgId:
+      type: Regular
+      bins: 47
+      start: -23
+      stop: 24
+      label: incoming parton 2 pdgId
+      expression: objects['genparton_incoming2_pdgId']
+    genparton1_pt:
+      type: Regular
+      bins: 60
+      start: 0
+      stop: 600
+      label: leading parton $p_T$ [GeV]
+      expression: objects['genparton1'].pt
+    genparton1_eta:
+      type: Regular
+      bins: 50
+      start: -5
+      stop: 5
+      label: leading parton $\eta$
+      expression: objects['genparton1'].eta
+    genparton2_pt:
+      type: Regular
+      bins: 60
+      start: 0
+      stop: 600
+      label: subleading parton $p_T$ [GeV]
+      expression: objects['genparton2'].pt
+    genparton2_eta:
+      type: Regular
+      bins: 50
+      start: -5
+      stop: 5
+      label: subleading parton $\eta$
+      expression: objects['genparton2'].eta
+    dilepton_mass:
+      type: Variable
+      edges:
+        - 0
+        - 12
+        - 20
+        - 40
+        - 60
+        - 72
+        - 80
+        - 100
+        - 120
+        - 140
+        - 160
+        - 180
+        - 200
+        - 225
+        - 250
+        - 275
+        - 300
+        - 325
+        - 350
+        - 400
+        - 450
+        - 500
+      label: $m(\ell\ell)$ [GeV]
+      expression: (objects["ll_pair"].l1 + objects["ll_pair"].l2).mass
+    dilepton_pt:
+      type: Variable
+      edges:
+        - 0
+        - 30
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 140
+        - 160
+        - 180
+        - 200
+        - 225
+        - 250
+        - 275
+        - 300
+        - 325
+        - 350
+      label: $p_T(\ell\ell)$ [GeV]
+      expression: (objects["ll_pair"].l1 + objects["ll_pair"].l2).pt
+    met_pt:
+      type: Variable
+      edges:
+        - 0
+        - 45
+        - 55
+        - 65
+        - 75
+        - 85
+        - 95
+        - 105
+        - 115
+        - 125
+        - 135
+        - 145
+        - 155
+        - 170
+        - 185
+        - 200
+        - 220
+        - 250
+        - 300
+        - 350
+      label: $p_T^{miss}$ [GeV]
+      expression: objects['met'].pt
+    met_phi:
+      type: Regular
+      bins: 50
+      start: -3.14159
+      stop: 3.14159
+      label: $\phi(p_T^{miss})$ [GeV]
+      expression: objects['met'].phi
+    lepton1_pt:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 30
+        - 40
+        - 50
+        - 60
+        - 70
+        - 80
+        - 90
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+        - 240
+        - 300
+        - 350
+      label: $p_T(\ell_1)$ [GeV]
+      expression: objects["ll_pair"].l1.pt
+    lepton2_pt:
+      type: Variable
+      edges:
+        - 0
+        - 10
+        - 20
+        - 30
+        - 40
+        - 50
+        - 60
+        - 70
+        - 80
+        - 90
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+        - 240
+      label: $p_T(\ell_2)$ [GeV]
+      expression: objects["ll_pair"].l2.pt
+    mtl1:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 140
+        - 160
+        - 180
+        - 200
+        - 230
+        - 260
+        - 300
+        - 350
+        - 400
+        - 500
+      label: $m_T^{\ell_1}$ [GeV]
+      expression: objects['mTl1']
+    mtl2:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 30
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 140
+        - 160
+        - 180
+        - 200
+        - 230
+        - 260
+        - 300
+      label: $m_T^{\ell_2}$ [GeV]
+      expression: objects['mTl2']
+    mtll:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 140
+        - 160
+        - 180
+        - 200
+        - 230
+        - 260
+        - 300
+        - 350
+        - 400
+        - 500
+      label: $m_T^{\ell \ell}$ [GeV]
+      expression: objects['mTll']
+    jet_pt:
+      type: Variable
+      edges:
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+        - 240
+        - 300
+        - 350
+        - 400
+      label: Jets $p_T$ [GeV]
+      expression: objects['jets'].pt
+    jet_eta:
+      type: Regular
+      bins: 50
+      start: -2.4
+      stop: 2.4
+      label: Jets $\eta$
+      expression: objects['jets'].eta
+    jet_phi:
+      type: Regular
+      bins: 50
+      start: -3.14159
+      stop: 3.14159
+      label: Jets $\phi$
+      expression: objects['jets'].phi
+    cjet_cand_flavour:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: Candidate c-jet HadronFlavour
+      expression: ak.pad_none(objects['candidate_cjet'], target=1).hadronFlavour
+    cjet_cand_cvsl_pnet:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 1
+      label: Candidate c-jet CvsL (PNet)
+      expression: ak.pad_none(objects['candidate_cjet'], target=1).btagPNetCvL
+    cjet_cand_cvsb_pnet:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 1
+      label: Candidate c-jet CvsB (PNet)
+      expression: ak.pad_none(objects['candidate_cjet'], target=1).btagPNetCvB
+    jet_multiplicity:
+      type: Integer
+      start: 0
+      stop: 14
+      label: Jets multiplicity
+      expression: ak.num(objects['jets'])
+    cjet_multiplicity:
+      type: Integer
+      start: 0
+      stop: 14
+      label: c-jets multiplicity
+      expression: ak.num(objects['cjets'])
+    leadingjet_flavour:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: Jet HadronFlavour
+      expression: ak.pad_none(objects['jets'], target=2)[:, 0].hadronFlavour
+    leadingjet_cvsl_pnet:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 1
+      label: Leading jet CvsL (PNet)
+      expression: ak.pad_none(objects['jets'], target=2)[:, 0].btagPNetCvL
+    leadingjet_cvsb_pnet:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 1
+      label: Leading jet CvsB (PNet)
+      expression: ak.pad_none(objects['jets'], target=2)[:, 0].btagPNetCvB
+    cjet_cand_pt:
+      type: Variable
+      edges:
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+        - 240
+        - 300
+        - 350
+        - 400
+      label: Candidate c-jet $p_T$ [GeV]
+      expression: objects['candidate_cjet'].pt
+    nSV:
+      type: Integer
+      start: 0
+      stop: 20
+      label: Number of secondary vertices
+      expression: ak.num(events.SV)
+    delta_R_ll_l1:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 3
+      label: $\Delta R(\ell \ell, \ell_1)$
+      expression: objects['delta_R_ll_l1']
+    delta_R_ll_l2:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 5
+      label: $\Delta R(\ell \ell, \ell_2)$
+      expression: objects['delta_R_ll_l2']
+    delta_R_ll_c:
+      type: Regular
+      bins: 50
+      start: 0
+      stop: 5
+      label: $\Delta R(\ell \ell, c)$
+      expression: objects['delta_R_ll_c']
+    delta_phi_l1_MET:
+      type: Regular
+      bins: 50
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell_1,$ MET$)$
+      expression: objects['delta_phi_l1_MET']
+    delta_phi_l2_MET:
+      type: Regular
+      bins: 50
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell_2,$ MET$)$
+      expression: objects['delta_phi_l2_MET']
+    delta_phi_ll_MET:
+      type: Regular
+      bins: 50
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell \ell,$ MET$)$
+      expression: objects['delta_phi_ll_MET']
+    delta_phi_llPlusMET_c:
+      type: Regular
+      bins: 50
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell \ell +$ MET$,$ candidate c-jet$)$
+      expression: objects['delta_phi_llPlusMET_c']
+    delta_phi_l1PlusMET_c:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell_1 +$ MET$,$ candidate c-jet$)$
+      expression: objects['delta_phi_l1PlusMET_c']
+    delta_phi_l1PlusMET_jet1:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell_1 +$ MET$, j_1)$
+      expression: objects['delta_phi_l1PlusMET_jet1']
+    delta_phi_l1PlusMET_jet2:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell_1 +$ MET$, j_2)$
+      expression: objects['delta_phi_l1PlusMET_jet2']
+    delta_phi_l1PlusMET_jet3:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell_1 +$ MET$, j_3)$
+      expression: objects['delta_phi_l1PlusMET_jet3']
+    jet1_pt:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+        - 240
+        - 300
+        - 350
+        - 400
+      label: Leading jet $p_T$ [GeV]
+      expression: objects['jet1'].pt
+    jet2_pt:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+        - 240
+        - 300
+      label: Subleading jet $p_T$ [GeV]
+      expression: objects['jet2'].pt
+    jet3_pt:
+      type: Variable
+      edges:
+        - 0
+        - 20
+        - 40
+        - 60
+        - 80
+        - 100
+        - 120
+        - 150
+        - 180
+        - 210
+      label: Third leading jet $p_T$ [GeV]
+      expression: objects['jet3'].pt
+    delta_R_ll_jet1:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 5
+      label: $\Delta R(\ell \ell, j_1)$
+      expression: objects['delta_R_ll_jet1']
+    delta_R_ll_jet2:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 5
+      label: $\Delta R(\ell \ell, j_2)$
+      expression: objects['delta_R_ll_jet2']
+    delta_R_ll_jet3:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 5
+      label: $\Delta R(\ell \ell, j_3)$
+      expression: objects['delta_R_ll_jet3']
+    delta_phi_llPlusMET_jet1:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell \ell, j_1)$
+      expression: objects['delta_phi_llPlusMET_jet1']
+    delta_phi_llPlusMET_jet2:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell \ell, j_2)$
+      expression: objects['delta_phi_llPlusMET_jet2']
+    delta_phi_llPlusMET_jet3:
+      type: Regular
+      bins: 20
+      start: -3.14159
+      stop: 3.14159
+      label: $\Delta \phi(\ell \ell, j_3)$
+      expression: objects['delta_phi_llPlusMET_jet3']
+    cjet_multiplicity_jet1:
+      type: Integer
+      start: 0
+      stop: 2
+      label: c-jet multiplicity(Jet 1)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=1)[:, 0].hadronFlavour == 4, False), int)
+    subleadingjet_flavour:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: HadronFlavour Jet 2
+      expression: ak.pad_none(objects['jets'], target=2)[:, 1].hadronFlavour
+    secondleadingjet_cvsl_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsL Jet 2 (PNet)
+      expression: ak.pad_none(objects['jets'], target=2)[:, 1].btagPNetCvL
+    secondleadingjet_cvsb_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsB Jet 2 (PNet)
+      expression: ak.pad_none(objects['jets'], target=2)[:, 1].btagPNetCvB
+    cjet_multiplicity_jet2:
+      type: Integer
+      start: 0
+      stop: 2
+      label: c-jet multiplicity(Jet 2)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=2)[:, 1].hadronFlavour == 4, False), int)
+    thirdleadingjet_flavour:
+      type: IntCategory
+      categories:
+        - 0
+        - 4
+        - 5
+      label: HadronFlavour Jet 3
+      expression: ak.pad_none(objects['jets'], target=3)[:, 2].hadronFlavour
+    thirdleadingjet_cvsl_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsL Jet 3 (PNet)
+      expression: ak.pad_none(objects['jets'], target=3)[:, 2].btagPNetCvL
+    thirdleadingjet_cvsb_pnet:
+      type: Regular
+      bins: 20
+      start: 0
+      stop: 1
+      label: CvsB Jet 3 (PNet)
+      expression: ak.pad_none(objects['jets'], target=3)[:, 2].btagPNetCvB
+    cjet_multiplicity_jet3:
+      type: Integer
+      start: 0
+      stop: 2
+      label: c-jet multiplicity(Jet 3)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 2].hadronFlavour == 4, False), int)
+    cjet_multiplicity_jet1and2:
+      type: Integer
+      start: 0
+      stop: 3
+      label: c-jet multiplicity(Jet 1 + Jet 2)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=2)[:, 0].hadronFlavour == 4, False), int)+ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=2)[:, 1].hadronFlavour == 4, False), int)
+    cjet_multiplicity_jet1and2and3:
+      type: Integer
+      start: 0
+      stop: 4
+      label: c-jet multiplicity(Jet 1 + Jet 2 + Jet 3)
+      expression: ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 0].hadronFlavour == 4, False), int)+ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 1].hadronFlavour == 4, False), int)+ak.values_astype(ak.fill_none(ak.pad_none(objects['jets'], target=3)[:, 2].hadronFlavour == 4, False), int)
+  layout:
+    dilepton_mass:
+      - dilepton_mass
+    dilepton_pt:
+      - dilepton_pt
+    met:
+      - met_pt
+      - met_phi
+    lepton:
+      - lepton1_pt
+      - lepton2_pt
+    mass:
+      - mtl1
+      - mtl2
+      - mtll
+    candidate_cjet:
+      - cjet_cand_flavour
+      - cjet_cand_cvsl_pnet
+      - cjet_cand_cvsb_pnet
+      - cjet_cand_pt
+    jets:
+      - jet_pt
+      - jet_eta
+      - jet_phi
+    jet_multiplicity:
+      - jet_multiplicity
+    cjet_multiplicity:
+      - cjet_multiplicity
+    leading_jet:
+      - leadingjet_flavour
+      - leadingjet_cvsb_pnet
+      - leadingjet_cvsl_pnet
+      - cjet_multiplicity_jet1
+    secondleading_jet:
+      - subleadingjet_flavour
+      - secondleadingjet_cvsb_pnet
+      - secondleadingjet_cvsl_pnet
+      - cjet_multiplicity_jet2
+    thirdleading_jet:
+      - thirdleadingjet_flavour
+      - thirdleadingjet_cvsb_pnet
+      - thirdleadingjet_cvsl_pnet
+      - cjet_multiplicity_jet3
+    cjet_multiplicity_jet1and2:
+      - cjet_multiplicity_jet1and2
+    cjet_multiplicity_jet1and2and3:
+      - cjet_multiplicity_jet1and2and3
+    SV:
+      - nSV 
+    delta_R_ll_l1:
+      - delta_R_ll_l1
+    delta_R_ll_l2:
+      - delta_R_ll_l2
+    delta_R_ll_c:
+      - delta_R_ll_c
+    delta_phi_l1_MET:
+      - delta_phi_l1_MET
+    delta_phi_l2_MET:
+      - delta_phi_l2_MET 
+    delta_phi_ll_MET:
+      - delta_phi_ll_MET
+    delta_phi_llPlusMET_c:
+      - delta_phi_llPlusMET_c
+    delta_phi_l1PlusMET_c:
+      - delta_phi_l1PlusMET_c
+    delta_phi_l1PlusMET_jet1:
+      - delta_phi_l1PlusMET_jet1
+    delta_phi_l1PlusMET_jet2:
+      - delta_phi_l1PlusMET_jet2
+    delta_phi_l1PlusMET_jet3:
+      - delta_phi_l1PlusMET_jet3
+    jet1_pt:
+      - jet1_pt
+    jet2_pt: 
+      - jet2_pt
+    jet3_pt: 
+      - jet3_pt
+    delta_R_ll_jet1:
+      - delta_R_ll_jet1
+    delta_R_ll_jet2:
+      - delta_R_ll_jet2
+    delta_R_ll_jet3:
+      - delta_R_ll_jet3
+    delta_phi_llPlusMET_jet1:
+      - delta_phi_llPlusMET_jet1
+    delta_phi_llPlusMET_jet2:
+      - delta_phi_llPlusMET_jet2
+    delta_phi_llPlusMET_jet3:
+      - delta_phi_llPlusMET_jet3
+  add_syst_axis: true
+  add_weight: true
+
+
+mva:
+  train_test_split:
+    field: event           # NanoAOD event id, written to parquet by base.py
+    test_modulo: 10        # ~10% held out for test, ~90% for b-hive train+valid
+    test_remainder: 9
+  labels:
+    # Order of these keys defines the one-hot class order (is_hplusc first, etc.).
+    # Must match the b-hive config's `truths` order (HPlusCHToWW_multiclass.yml).
+    # 6-class split: signal H+c separated from the rest of Higgs (higgsbkg).
+    process_groups:
+      hplusc:   [H+c]
+      higgsbkg: [H+b, ggH, VBF, ZH, ggZH, WH, ttHnonBB, ttHtoBB, H(125)]
+      tt:       [tt]
+      st:       [Single Top]
+      diboson:  [WW, WZ, ZZ, qqToZZ, ggToZZ]
+      vjets:    [DY+Jets, V+Jets]
+    # 13-class finegrained scheme (v32 / kappa-HCE): Higgs split into sub-classes.
+    # Class keys = b-hive HPlusCHToWW_kappa_hce.yml `truths` minus the `is_` prefix
+    # (note is_ggH keeps its capital H -> key `ggH`).
+    process_groups_v32:
+      hplusc:   [H+c]
+      hplusb:   [H+b]
+      ggH:      [ggH]
+      vbf:      [VBF]
+      zh:       [ZH]
+      ggzh:     [ggZH]
+      wh:       [WH]
+      tthnonbb: [ttHnonBB]
+      tthtobb:  [ttHtoBB]
+      tt:       [tt]
+      st:       [Single Top]
+      diboson:  [WW, WZ, ZZ, qqToZZ, ggToZZ]
+      vjets:    [DY+Jets, V+Jets]
+inference:
+  framework: b-hive
+  model_version: hwwcom_multiclass_v11_2dcats
+  model_path: /eos/user/c/cgupta/EPR_task/b-hive/output/TrainingTask/HPlusCHToWW_2dcats/hwwcom_v11_2dcats_train/hwwcom_multiclass_v11_2dcats/SimpleMLP_MultiClass/epochs_30/nominal/best_model.pt
+  bhive_path: /eos/home-c/cgupta/HToWW/b-hive
+  bhive_config: HPlusCHToWW_2dcats
+  bhive_model_name: SimpleMLP_MultiClass
+  batch_size: 4096
+combine:
+  # D = the network score for the class that wins argmax in each event.
+  # The score column written by run_inference.py is mva_score_<class>.
+  discriminant: argmax_winner_score
+  # Variable binning: signal lives in P(hplusc) in [0.2,0.55] and rises toward 0.55,
+  # so resolution is concentrated in [0.40,0.60]; CR tails preserved by the wide 0.6-1.0 bin.
+  binning:
+    edges: [0.0, 0.2, 0.3, 0.35, 0.40, 0.44, 0.48, 0.52, 0.56, 0.60, 1.0]
+    # PER-CHANNEL BINNING (make_combine_inputs_v2.py only; the original builder uses one
+    # global `edges` for every channel and ignores this key).
+    #
+    # VARIANT under test 2026-08-12: yield-only for the three TOP-DOMINATED CRs, keeping
+    # 10-bin shapes in CR_tt and CR_vjets.
+    #
+    # Measured top purity (tt + single-top, as a fraction of the channel total):
+    #   CR_tt        99.1%    <- keep shape: the primary top CR, pins rate_tt
+    #   CR_st        97.6%    <- yield-only: a second slice of the SAME top phase space
+    #   CR_higgsbkg  92.9%    <- yield-only: a third slice of it
+    #   CR_diboson   83.5%    <- yield-only: mostly top, only 690 actual diboson
+    #   CR_vjets     53.7%    <- keep shape: the only genuinely V+jets-enriched CR (3979)
+    #
+    # Rationale: three of the five CRs are predominantly TOP regions differing only in
+    # which top-like class the network picked, so their shapes are largely redundant with
+    # CR_tt. Collapsing all five cost 50 units; this keeps the two that carry distinct
+    # information. (Single-top is physically tt-like -- AN-23-102's cut-based top CR does
+    # not separate them either.)
+    # MEASURED 2026-08-12: this variant gives 1193 vs the 1160 baseline -- it COSTS
+    # 33 units. Collapsing all five cost 50. Disabled; the 10-bin CR shapes carry
+    # real information after all.
+    # per_channel:
+    #   CR_st:       [0.0, 1.0]
+    #   CR_higgsbkg: [0.0, 1.0]
+    #   CR_diboson:  [0.0, 1.0]
+    # PER-CHANNEL BINNING (make_combine_inputs_v2.py only; the original builder uses a
+    # single global `edges` for every channel and ignores this key).
+    # All five background CRs are collapsed to ONE bin = yield-only, keeping the 10-bin
+    # shape in the SR. Two independent precedents:
+    #   * AN-23-102 line 662 -- the top CR is deliberately yield-only
+    #   * AN-24-091 Table 10 (Run 3 HH->bbWW) -- EVERY CR is literally 1 bin, SRs 10/6/3
+    # Rationale: CR_tt is 87.9% pure over 1.56M events, so there is no useful shape there,
+    # and a 10-bin shape in an argmax-defined CR is the artificial-constraint failure mode
+    # of AN-23-102 section 7.2.1. It also removes the argmax channel-migration artifact
+    # from five of the six channels (see 2026-08-11-jes-jer-bug-fixed).
+
+  classes: [hplusc, higgsbkg, tt, st, diboson, vjets]
+  signal: hplusc
+  # one channel per class; the event lands in the channel of its argmax class.
+  channels:
+    SR_hplusc:   hplusc
+    CR_higgsbkg: higgsbkg
+    CR_tt:       tt
+    CR_st:       st
+    CR_diboson:  diboson
+    CR_vjets:    vjets
+  # combine process -> higgscharm process names (parquet `process` groups).
+  # DATACARD PROCESSES (make_combine_inputs_v2.py only). MEASURED 2026-08-12: splitting
+  # ggH out COSTS 25 units (1160 -> 1185) because the AN's correctly-scoped 1.50 on ggH
+  # alone is a larger penalty than the 1.066 average on the merged group. The split is
+  # still the more CORRECT treatment and is the prerequisite for the 2POI fit, so keep
+  # this line ready -- but it is disabled while we optimise the 1POI limit.
+  # processes: [hplusc, ggH, higgsbkg, tt, st, diboson, vjets]
+  process_map:
+    hplusc:   [H+c]
+    # ggH SPLIT OUT 2026-08-11, enabled by `combine.processes` above and
+    # make_combine_inputs_v2.py. The ORIGINAL builder derives datacard processes from
+    # `combine.classes` and silently ignores unmatched process_map keys -- with it, this
+    # split DELETES ggH/ggZH from the card (verified: SR total 20664 -> 20561 and the
+    # flavor_composition_ggH row went all-dashes, build still exiting 0).
+    # v2 validates the two lists against each other and raises instead.
+    # Splitting lets the AN's real 50% apply to ggH alone rather than the 1.066 average a
+    # merged group forces, and is the prerequisite for the 2POI fit.
+    higgsbkg: [H+b, VBF, ZH, ggH, ggZH, ttHnonBB, ttHtoBB]
+    tt:       [tt]
+    st:       [Single Top]
+    diboson:  [WW, WZ, ZZ]
+    vjets:    [DY+Jets, V+Jets]
+  # weight-based shape nuisances (read weight_<name>Up/Down columns from parquet).
+  shape_systematics:
+    - pileup
+    - ps_isr
+    - ps_fsr
+    - scalevar_muR
+    - scalevar_muF
+    - scalevar_muR_muF
+    - muon_id
+    - muon_iso
+    - electron_id
+    - electron_reco_RecoBelow20
+    - electron_reco_Reco20to75
+    - electron_reco_RecoAbove75
+    - CMS_ctag2d_2022
+    # PDF and alphaS as per-event SHAPES rather than flat lnN. The weights are already in
+    # the parquets (weight_lhe_pdf{Up,Down}, weight_lhe_alphaS{Up,Down}) -- lhepdf.py builds
+    # the full 100-replica NNPDF31 Hessian envelope and the alphaS pair, and we were then
+    # collapsing all of it to a flat number. HiggsDNA treats alphaS as a shape from
+    # LHEPdfWeight[:,-1]/[:,-2]; hh2bbww carries a `pdf` shape shift. Retires the
+    # xsec_hplusc_PDF (1.06) and alphaS_PDF (1.03) lnN rows below.
+    - lhe_pdf
+    - lhe_alphaS
+    # --- added 2026-08-11, all require the reprocessing campaign to have run ---
+    # tt-only shape; no-ops on every other process (AN-23-102 Table 16 "top pT reweight").
+    # COMMENTED OUT until the reprocessing campaign produces weight_top_pt.
+    # - top_pt
+    # ggH/VBF heavy-flavour composition, per-event (replaces flavor_composition_ggH lnN).
+    # COMMENTED OUT until the reprocessing campaign produces weight_higgs_plus_c; the
+    # interim lnN above covers it meanwhile. Swap the two when the campaign lands.
+    # - higgs_plus_c
+  # processes that skip the scalevar_* shape rows. (diboson scalevar now ENABLED =
+  # the AN's diboson "theo_vv" theory shape; weights already exist in the parquets.)
+  no_scalevar: []
+  # data-driven backgrounds: floating normalization (rateParam, shared CR->SR) replaces
+  # their xsec lnN, and their theory shapes (scalevar_*, ps_*) are dropped (AN-23-102:
+  # tt normalization taken from data). higgsbkg stays fixed to SM -> keeps the 1POI fit.
+  # Only tt is data-driven: CR_tt is the one tt-pure control region (tt=37670). The other
+  # argmax CRs are tt-dominated, so floating their target bkg leaves it weakly constrained
+  # and adds SR background freedom. st/diboson/vjets keep their (small) xsec lnN, as in AN-23-102.
+  rate_params: [tt]
+  no_theory:   [tt]
+  # rate-only nuisances (AN-23-102 Table 16 + LumiPOG). value can be a float
+  # or an asymmetric "down/up" string.
+  lnN:
+    lumi_13p6TeV:        {hplusc: 1.014, higgsbkg: 1.014, st: 1.014, diboson: 1.014, vjets: 1.014}
+    xsec_st:             {st: "0.9873/1.0167"}
+    xsec_diboson:        {diboson: 1.037}
+    xsec_vjets:          {vjets: 1.027}
+    xsec_higgsbkg:       {higgsbkg: 1.05}
+    # Higgs heavy-flavour composition (AN-23-102 7.1 / Table 16: 50% on the ggH yield).
+    # RETIRED as an lnN 2026-08-11 -- superseded by the per-event `higgsHFWeight`
+    # (analysis/corrections/higgs_hf.py, ported from HiggsDNA's Higgs_plus_HF_syst),
+    # which appears in the card as the `higgs_plus_c` SHAPE nuisance.
+    #
+    # Why the lnN was wrong: it sat on the whole merged higgsbkg group, but ggH is only
+    # 13.1% of that group's SR yield (VBF 29.0%, ggZH 23.3%, ZH 21.0%, WH 9.1%, rest 4.6%).
+    # A flat lnN therefore either over-penalises the other 87% (the original 1.40) or has
+    # to be watered down to an effective average (the 1.066 stopgap, worth 1185 -> 1164) --
+    # and either way it cannot produce the shape effect a real HF uncertainty has.
+    # The per-event version keys on gen-jet flavour, so the grouping stops mattering.
+    # NOTE: only active once the reprocessing campaign has produced the new weight column;
+    # until then neither this nor higgs_plus_c is in the card.
+    # INTERIM: re-enabled 2026-08-11 so the card keeps a ggH+HF uncertainty until the
+    # reprocessing campaign produces the per-event `higgs_plus_c` weight. REMOVE this
+    # line (and keep higgs_plus_c in shape_systematics) once the campaign has run --
+    # having both would double-count.
+    # Scaled to ggH's measured 13.1% share of the merged group (0.50*0.131 -> 1.066).
+    # An approximation forced by the grouping -- with `processes` enabled above this
+    # becomes {ggH: 1.50}, which is more correct but costs 25 units (1160 -> 1185).
+    # Superseded either way by the per-event `higgs_plus_c` shape once the reprocessing
+    # campaign lands (it keys on gen-jet flavour, so grouping stops mattering).
+    flavor_composition_ggH: {higgsbkg: 1.066}
+    BR_HtoWW:            {hplusc: 1.01, higgsbkg: 1.01}
+    # AN-23-102 Table 16 lists BR(H->tautau) 1% alongside BR(H->WW). Our higgsbkg group
+    # contains GluGluHto2Tau / VBFHToTauTau / W(+-)HTo2Tau / ttHtoTauTau, so the nuisance
+    # applies there. Added 2026-08-11 (was missing).
+    BR_Htautau:          {higgsbkg: 1.01}
+    # RETIRED 2026-08-11 -> now the per-event `lhe_pdf` SHAPE (see shape_systematics).
+    # Was a flat 1.06 on hplusc only; the shape covers every process and carries the
+    # actual replica-to-replica structure.
+    # xsec_hplusc_PDF:     {hplusc: 1.06}
+    xsec_hplusc_4FS_5FS: {hplusc: 1.30}
+    # RETIRED 2026-08-11 -> now the per-event `lhe_alphaS` SHAPE (see shape_systematics).
+    # Was the maximum of the AN's quoted 1-3% range applied flat to five processes.
+    # alphaS_PDF:          {hplusc: 1.03, higgsbkg: 1.03, st: 1.03, diboson: 1.03, vjets: 1.03}
+  # LOWESS smoothing DISABLED 2026-07-31. The negrw reweighting applied in
+  # process_sample (w -> |w|*g, renormalised to the nominal yield, arXiv:2510.16217)
+  # already removes the MC-stat variance at the source for the vjets templates, and
+  # its docstring states it REPLACES the template smoothing ("do not also smooth").
+  # smooth_shape_variations had no vjets exclusion, so those templates were being
+  # treated twice - washing out genuine shape information. Turned off for all
+  # processes; autoMCStats still covers per-bin MC-stat uncertainty.
+  smooth_shapes: false
+  autoMCStats: 10
+  output:
+    root:     outputs/combine/v11_hplusc_2dcat.root
+    datacard: outputs/combine/v11_hplusc_2dcat.txt
+    workspace: v11_hplusc_2dcat.workspace.root
+  run:
+    asymptotic_limits: {asimov: true, blind: true}
+    multidimfit_scan:  {algo: grid, range_r: [-5, 5], points: 41}
+    impacts: {method: freeze_per_nuisance}

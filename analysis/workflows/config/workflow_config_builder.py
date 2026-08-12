@@ -21,6 +21,7 @@ class WorkflowConfigBuilder:
             mva=self.config.get("mva"),
             inference=self.config.get("inference"),
             combine=self.config.get("combine"),
+            negrw=self.config.get("negrw"),
         )
 
     def parse_object_selection(self):

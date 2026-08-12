@@ -202,6 +202,24 @@ def get_corrected_jets_coffea(events, year):
             ak.values_astype(corrected_polar_met(*metinfo).phi, np.float32),
         )
         met["orig_pt"], met["orig_phi"] = nocorrmet["pt"], nocorrmet["phi"]
+        # NanoAODv12 ships the unclustered-energy variation as ready-made branches on
+        # PuppiMET. The CorrectedMETFactory path below never runs for Run 3, so the
+        # `MET_UnclusteredEnergy` field the shift loop looks for is never attached --
+        # take the branches directly instead. (AN-23-102 Table 16: MET unclustered.)
+        if "ptUnclusteredUp" in nocorrmet.fields:
+            unclust = {}
+            for _dirn, _suf in (("up", "Up"), ("down", "Down")):
+                _v = copy.copy(met)
+                _v["pt"] = ak.values_astype(
+                    nocorrmet[f"ptUnclustered{_suf}"], np.float32
+                )
+                _v["phi"] = ak.values_astype(
+                    nocorrmet[f"phiUnclustered{_suf}"], np.float32
+                )
+                unclust[_dirn] = _v
+            met["MET_UnclusteredEnergy"] = ak.zip(
+                {"up": unclust["up"], "down": unclust["down"]}, depth_limit=1
+            )
     else:
         met = CorrectedMETFactory(jec_name_map).build(events[met_field_key], jets, {})
 
