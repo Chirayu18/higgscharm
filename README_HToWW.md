@@ -43,7 +43,7 @@ NanoAOD (DAS/EOS)
 parquet  outputs/<workflow>/<year>/<dataset>/            nominal + 6 object-shift dirs
    |  run_postprocess.py --mva
    v
-merged parquet  .../<var>/                               per-process, sumw sidecar
+merged parquet  .../<var>/                               per-process, sumw_records
    |  scripts/mva/run_inference.py                       6-class MVA scores
    v
 mva parquet     .../<var>/mva/                           mva_score_{hplusc,higgsbkg,tt,st,diboson,vjets}
@@ -114,12 +114,18 @@ python3 run_postprocess.py --workflow hww_combine_2dcat --year 2022postEE \
         --postprocess --output_format parquet --mva
 ```
 
-Merges per-dataset parquets into per-process files and writes the **sumw sidecar
-json**, which is what normalisation reads.
+Merges per-dataset parquets into per-process files.
 
-> **Trap:** `read_scale = lumi × xsec / sumw` MUST use the sidecar
-> `sumw_<year>.json`. Parquet metadata undercounts `WtoLNu` by 5.8× and would
-> silently inflate V+jets by ~2.4×.
+**Normalisation is self-contained**: `read_scale = lumi × xsec / sumw` reads sumw
+from the per-chunk `sumw_records` written by `dump_chunk_sumw`, which records the
+PRE-selection generator sumw of every chunk — including chunks that select zero
+events and so write no data shard.
+
+> **Trap:** never normalise from the per-shard parquet **schema metadata**. It
+> undercounts low-efficiency samples badly (`WtoLNu_2Jets` 5.4×, `TbarQto2Q` 72×)
+> precisely because zero-selection chunks wrote no shard, which silently inflates
+> V+jets. `read_scale` now raises if `sumw_records` are absent rather than falling
+> back to anything.
 
 ---
 
@@ -367,7 +373,7 @@ correction. Known, accepted gap.
 | trap | detail |
 |---|---|
 | **Inference coverage** | MVA scoring must cover every shift dir, not just nominal. Cost 500 limit units when missed. |
-| **sumw source** | Use the sidecar json, never parquet metadata (5.8× undercount on WtoLNu). |
+| **sumw source** | Comes from `sumw_records` (self-normalising). Never the per-shard parquet schema metadata — 5.4× undercount on WtoLNu, 72× on TbarQto2Q. |
 | **Parent/`-ext` xsecs** | `-ext` cross sections are a *proportional split* of the same total, not extra rate. tt parent-only = 923.41 pb = NNLO. Adding `-ext` naively inflates tt 1.5×. Re-split, don't append. |
 | **v1 builder silently drops processes** | `combine.processes` with v1 deletes unmatched processes while exiting 0. Use v2. |
 | **Card identity** | Builds overwrite in place. Check per-channel bin counts before trusting a limit. |

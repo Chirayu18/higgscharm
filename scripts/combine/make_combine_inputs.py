@@ -69,14 +69,10 @@ def load_lumi(year):
 def read_scale(sample, year, base_dir, lumi):
     """lumi*xsec/sumw for an MC/signal sample; 1.0 for data.
 
-    SELF-NORMALISING (source #1): sumw comes from the per-chunk sumw_records written
-    by dump_chunk_sumw on the PRE-selection events of every read chunk -- including
+    SELF-NORMALISING: sumw comes from the per-chunk sumw_records written by
+    dump_chunk_sumw on the PRE-selection events of every read chunk -- including
     chunks that select zero events and therefore write no data shard. This is the
     repo's own read_parquet_sumw() logic and is the correct generator sumw.
-
-    Legacy samples produced before dump_chunk_sumw have no sumw_records; for those we
-    fall back to the sidecar analysis/filesets/sumw_<year>.json. Every fallback is
-    logged so the set is explicit.
 
     NOT USED: the per-shard schema metadata in parquets_<sample>/base/. It undercounts
     low-efficiency samples badly (WtoLNu_2Jets 5.4x, TbarQto2Q 72x) precisely because
@@ -88,9 +84,9 @@ def read_scale(sample, year, base_dir, lumi):
         return 1.0
     xsec = float(info["xsec"])
 
-    import json, re as _re
+    import re as _re
 
-    # --- source #1: sumw_records (self-normalising) ---
+    # --- sumw_records (self-normalising) ---
     rec_dirs = glob.glob(f"{base_dir}/{sample}_*/sumw_records") + glob.glob(
         f"{base_dir}/{sample}/sumw_records"
     )
@@ -104,19 +100,13 @@ def read_scale(sample, year, base_dir, lumi):
     for f in rec_files:
         sumw += float(sum(pq.read_table(f, columns=["sumw"])["sumw"].to_pylist()))
 
-    if sumw > 0:
-        return lumi * xsec / sumw
-
-    # --- fallback: sidecar, for legacy samples with no sumw_records ---
-    sidecar = json.load(open(Path.cwd() / "analysis" / "filesets" / f"sumw_{year}.json"))
-    sumw = sidecar.get(sample)
-    if not sumw:
+    if sumw <= 0:
         raise ValueError(
             f"no sumw for MC sample {sample!r}: no sumw_records under "
-            f"{base_dir}/{sample}*/sumw_records and not in sumw_{year}.json"
+            f"{base_dir}/{sample}*/sumw_records. Reprocess the sample -- "
+            f"dump_chunk_sumw writes these unconditionally."
         )
-    print(f"    [sumw] {sample}: no sumw_records -> sidecar fallback ({float(sumw):.4e})")
-    return lumi * xsec / float(sumw)
+    return lumi * xsec / sumw
 
 
 def gather_samples(year, process_map):
