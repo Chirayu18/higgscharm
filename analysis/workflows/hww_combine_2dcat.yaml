@@ -1093,9 +1093,12 @@ combine:
     - lhe_alphaS
     # --- added 2026-08-11, all require the reprocessing campaign to have run ---
     # tt-only shape; no-ops on every other process (AN-23-102 Table 16 "top pT reweight").
-    - top_pt
+    # COMMENTED OUT until the reprocessing campaign produces weight_top_pt.
+    # - top_pt
     # ggH/VBF heavy-flavour composition, per-event (replaces flavor_composition_ggH lnN).
-    - higgs_plus_c
+    # COMMENTED OUT until the reprocessing campaign produces weight_higgs_plus_c; the
+    # interim lnN above covers it meanwhile. Swap the two when the campaign lands.
+    # - higgs_plus_c
   # processes that skip the scalevar_* shape rows. (diboson scalevar now ENABLED =
   # the AN's diboson "theo_vv" theory shape; weights already exist in the parquets.)
   no_scalevar: []
@@ -1137,9 +1140,7 @@ combine:
     # becomes {ggH: 1.50}, which is more correct but costs 25 units (1160 -> 1185).
     # Superseded either way by the per-event `higgs_plus_c` shape once the reprocessing
     # campaign lands (it keys on gen-jet flavour, so grouping stops mattering).
-    # SUPERSEDED by the per-event `higgs_plus_c` shape (higgsHFWeight).
-    # Kept commented so the two never double-count the same physics.
-    # flavor_composition_ggH: {higgsbkg: 1.066}
+    flavor_composition_ggH: {higgsbkg: 1.066}
     BR_HtoWW:            {hplusc: 1.01, higgsbkg: 1.01}
     # AN-23-102 Table 16 lists BR(H->tautau) 1% alongside BR(H->WW). Our higgsbkg group
     # contains GluGluHto2Tau / VBFHToTauTau / W(+-)HTo2Tau / ttHtoTauTau, so the nuisance
