@@ -126,7 +126,8 @@ def resolve_binning(combine, channels):
 # ----------------------------------------------------------------------------------
 # per-channel-edges variants of the base writers
 # ----------------------------------------------------------------------------------
-def write_root_v2(root_path, proc_hists, channels, processes, variations, edges_by_ch):
+def write_root_v2(root_path, proc_hists, channels, processes, variations,
+                  edges_by_ch, extra_hists=None):
     histograms = {}
     for ch in channels:
         edges = edges_by_ch[ch]
@@ -135,6 +136,8 @@ def write_root_v2(root_path, proc_hists, channels, processes, variations, edges_
                 counts, sumw2 = proc_hists[ch][cp][var_name]
                 hname = f"{ch}_{cp}" if var_name == "nominal" else f"{ch}_{cp}_{var_name}"
                 histograms[hname] = base.to_uproot_th1(counts, sumw2, edges, hname)
+    if extra_hists:
+        histograms.update(extra_hists)
     root_path.parent.mkdir(parents=True, exist_ok=True)
     with base.uproot.recreate(str(root_path)) as f:
         for name, h in histograms.items():
@@ -142,18 +145,34 @@ def write_root_v2(root_path, proc_hists, channels, processes, variations, edges_
     return len(histograms)
 
 
-def write_data_obs_v2(root_path, proc_hists, channels, backgrounds, edges_by_ch):
-    data = {}
+def build_data_obs_v2(proc_hists, channels, backgrounds, edges_by_ch):
+    """Build per-channel Asimov bkg-only data_obs histograms IN MEMORY.
+
+    Returns (hists, totals) so the caller can hand `hists` to write_root_v2 and
+    have everything written in ONE uproot.recreate pass.
+
+    Why not append with uproot.update(): the previous implementation wrote the
+    file with recreate(), closed it, then reopened it with update() to append
+    data_obs. Reopening makes uproot re-parse the file's free-segments record,
+    which fails on files written to EOS:
+
+        struct.error: unpack requires a buffer of 10 bytes
+        (uproot/writing/_cascade.py, FreeSegmentsData.deserialize)
+
+    The crash happened AFTER all histogram content was already on disk, so the
+    build had in fact succeeded -- it just exited non-zero, which is worse than
+    a clean failure because it sends you looking for a problem that is not
+    there. Building in memory and writing once removes the reopen entirely.
+    """
+    hists, totals = {}, {}
     for ch in channels:
         counts = np.sum([proc_hists[ch][b]["nominal"][0] for b in backgrounds], axis=0)
         sumw2 = np.sum([proc_hists[ch][b]["nominal"][1] for b in backgrounds], axis=0)
-        data[ch] = (counts, sumw2)
-    with base.uproot.update(str(root_path)) as f:
-        for ch, (counts, sumw2) in data.items():
-            f[f"{ch}_data_obs"] = base.to_uproot_th1(
-                counts, sumw2, edges_by_ch[ch], f"{ch}_data_obs"
-            )
-    return {ch: data[ch][0].sum() for ch in channels}
+        hists[f"{ch}_data_obs"] = base.to_uproot_th1(
+            counts, sumw2, edges_by_ch[ch], f"{ch}_data_obs"
+        )
+        totals[ch] = counts.sum()
+    return hists, totals
 
 
 def write_datacard_v2(datacard_path, root_name, combine, proc_hists, processes,
@@ -314,8 +333,9 @@ def main():
 
     out_root = Path(combine["output"]["root"])
     out_card = Path(combine["output"]["datacard"])
-    n = write_root_v2(out_root, proc_hists, channels, processes, variations, edges_by_ch)
-    write_data_obs_v2(out_root, proc_hists, channels, backgrounds, edges_by_ch)
+    data_obs_hists, _ = build_data_obs_v2(proc_hists, channels, backgrounds, edges_by_ch)
+    n = write_root_v2(out_root, proc_hists, channels, processes, variations,
+                      edges_by_ch, extra_hists=data_obs_hists)
     yields = write_datacard_v2(out_card, out_root.name, combine, proc_hists,
                                processes, obj_shift_systs=obj_shift_systs)
 
