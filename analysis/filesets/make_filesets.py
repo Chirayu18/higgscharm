@@ -4,9 +4,20 @@ import os
 import subprocess
 from pathlib import Path
 
+import sys
+
 import yaml
+import coffea.dataset_tools
+from analysis.filesets import rucio_utils
 from analysis.filesets.utils import get_nano_version
-from coffea.dataset_tools.dataset_query import DataDiscoveryCLI
+
+# Use the patched rucio_utils.py from this repo instead of coffea's own copy (which crashes
+# with KeyError 'rse' on SITECONF entries without an rse key). Registering it before
+# dataset_query is imported makes this work however make_filesets is run, not only through
+# the bind mount in fetch.py.
+sys.modules["coffea.dataset_tools.rucio_utils"] = rucio_utils
+coffea.dataset_tools.rucio_utils = rucio_utils
+from coffea.dataset_tools.dataset_query import DataDiscoveryCLI  # noqa: E402
 
 
 def query_das_user_dataset(query, instance="prod/phys03"):
@@ -146,7 +157,8 @@ if __name__ == "__main__":
             dataset_discovery = json.load(f)
 
         for dataset in dataset_discovery:
-            root_files = list(dataset_discovery[dataset]["files"].keys())
+            # coffea 0.7.x saves "files" as a list, newer coffea as a {path: tree} dict
+            root_files = list(dataset_discovery[dataset]["files"])
             dataset_key = dataset_discovery[dataset]["metadata"]["short_name"]
             if dataset_key.startswith("Single"):
                 new_dataset[dataset_key.split("_")[0]] += root_files

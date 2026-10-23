@@ -1,4 +1,5 @@
 import argparse
+import os
 import subprocess
 from pathlib import Path
 from analysis.filesets.utils import get_nano_version
@@ -62,14 +63,20 @@ if __name__ == "__main__":
             subprocess.run(cmd, shell=True)
 
         samples_str = " ".join(args.samples) if args.samples else ""
-        cmd = (
+        make_cmd = f"python3 -m analysis.filesets.make_filesets --year {args.year} --samples {samples_str}"
+        # already inside a container (e.g. the coffea image via apptainer): run directly,
+        # make_filesets loads the repo's rucio_utils by itself
+        in_container = any(
+            v in os.environ for v in ("APPTAINER_CONTAINER", "SINGULARITY_CONTAINER")
+        )
+        cmd = make_cmd if in_container else (
             f"singularity exec "
             f"--env PYTHONNOUSERSITE=1 "
             f"-B /afs "
             f"-B /cvmfs "
             f"-B analysis/filesets/rucio_utils.py:/usr/local/lib/python3.10/site-packages/coffea/dataset_tools/rucio_utils.py "
             f"{args.image} "
-            f"python3 -m analysis.filesets.make_filesets --year {args.year} --samples {samples_str}"
+            f"{make_cmd}"
         )
         subprocess.run(cmd, shell=True)
 
