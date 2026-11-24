@@ -1,0 +1,29 @@
+# Retrained Run-3 ttH lepton MVA (mvaTTH), ONNX conversions used by analysis/leptonmva/tth.py
+# Source XMLs (TMVA BDT::BDTG, BoostType=Grad, 500 trees, depth <= 8, no input transformations),
+# identical to Thomas Van Laer's tvl/MVA analysis/data/tthMVA_2022-2023_retrained/*.xml (md5 checked 2026-11-05):
+#   /eos/user/c/cgupta/HToWW/leptonmva/Muon-mvaTTH.2022EE.weights.xml
+#   /eos/user/c/cgupta/HToWW/leptonmva/Electron-mvaTTH.2022EE.weights_mvaISO.xml
+# Converted 2026-08-12 (Projects/HToWW/leptonmva notes), node mode patched BRANCH_LEQ -> BRANCH_LT on 2026-10-08
+# (= TMVA's x >= cut goes right), /eos/user/c/cgupta/higgscharm/runall/plan/tthmva/out/*_BRANCH_LT.onnx.
+# Validated 2026-11-05 in coffea-base 0.7.30 (onnxruntime 1.23.2): max |ONNX - TMVA-exact| = 3.05e-7 (24484 mu),
+# 3.27e-7 (25713 e), real 2022postEE TTto2L2Nu leptons incl. all tie-sensitive ones.
+models:
+  Muon:
+    onnx: muon_mvaTTH_2022EE.onnx
+    onnx_sha256: 1ebebd0d58f6e4a723fc77e07c815d439807164fc79c355eebbf3d68a72d70f7
+    xml: Muon-mvaTTH.2022EE.weights.xml
+    xml_md5: c92cd95042e766278fd56728d71d0cc3
+    xml_sha256: 6d19759506a9d9a6f47aea7dfb300e03e3c52b2921d5391ea0a71841a5185c44
+    last_variable: Muon_segmentComp
+  Electron:
+    onnx: electron_mvaTTH_2022EE.onnx
+    onnx_sha256: 215dad89072bd8ad777f015d1e3ae87ed50f96ea663e27b4f253eabbf097d3de
+    xml: Electron-mvaTTH.2022EE.weights_mvaISO.xml
+    xml_md5: 92c06ca2049650a6b68ebf20d14c0494
+    xml_sha256: 950c4045d8ab871ee20d70a5aec8cc94035470a35aa0e08b14b8e66c23be2003
+    last_variable: Electron_mvaIso
+inputs: [pt, eta, pfRelIso03_all, miniPFRelIso_chg, "miniPFRelIso_all-miniPFRelIso_chg", jetNDauCharged, jetPtRelv2,
+         "jetIdx>-1?Jet_btagDeepFlavB[jetIdx]:0", "min(1/(1+jetRelIso),1.5)", sip3d, "log(abs(dxy))", "log(abs(dz))",
+         "segmentComp (mu) | mvaIso (e)"]
+input_name: X   # (N, 13) float32 -> output "score" (N, 1), in (-1, 1)
+years: [2022preEE, 2022postEE, 2023preBPix, 2023postBPix]

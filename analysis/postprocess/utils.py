@@ -15,6 +15,8 @@ from coffea.processor import accumulate
 from coffea.util import load, save
 
 from analysis.filesets.utils import get_dataset_config
+# server-side EOS listings: the FUSE mount can serve stale empty listings (eos_io.py)
+from analysis.utils.eos_io import glob as eos_glob, isdir as eos_isdir, read_parquet as eos_read_parquet
 
 
 def setup_logger(output_dir):
@@ -169,7 +171,7 @@ def merge_parquet_files(input_files, output_file):
 
 def merge_parquets(inpath, outpath, sample_name):
     outpath = Path(outpath)
-    files = sorted(Path(inpath).glob("*.parquet"))
+    files = sorted(Path(p) for p in eos_glob(f"{inpath}/*.parquet"))
     merge_parquet_files(files, outpath / f"{sample_name}.parquet")
 
 
@@ -213,7 +215,7 @@ def read_parquet_sumw(output_dir, sample, category):
     # generator sumw. Records live per partition: <output_dir>/<sample>_<n>/sumw_records/
     # (split) or <output_dir>/<sample>/sumw_records/ (unsplit). Filenames are
     # deterministic per chunk, so resubmits overwrite rather than double-count.
-    rec_dirs = glob.glob(f"{output_dir}/{sample}_*/sumw_records") + glob.glob(
+    rec_dirs = eos_glob(f"{output_dir}/{sample}_*/sumw_records") + eos_glob(
         f"{output_dir}/{sample}/sumw_records"
     )
     # guard against prefix collisions (e.g. DYto2L_2Jets_50 vs DYto2L_2Jets_50_ext):
@@ -224,16 +226,16 @@ def read_parquet_sumw(output_dir, sample, category):
         if re.fullmatch(rf"{re.escape(sample)}(_\d+)?", Path(d).parent.name)
     ]
     total = 0.0
-    rec_files = [f for d in rec_dirs for f in glob.glob(f"{d}/*.parquet")]
+    rec_files = [f for d in rec_dirs for f in eos_glob(f"{d}/*.parquet")]
     if rec_files:
         for f in rec_files:
-            total += float(sum(pq.read_table(f, columns=["sumw"])["sumw"].to_pylist()))
+            total += float(sum(eos_read_parquet(f, columns=["sumw"])["sumw"].to_pylist()))
         return total
 
     # Fallback (legacy / pre-fix parquets without sumw_records): the old additive
     # per-shard metadata scheme. WARNING: undercounts low-efficiency samples because
     # zero-selection chunks wrote no shard and thus no metadata sumw.
-    shards = glob.glob(f"{output_dir}/parquets_{sample}/{category}/*.parquet")
+    shards = eos_glob(f"{output_dir}/parquets_{sample}/{category}/*.parquet")
     for f in shards:
         meta = pq.ParquetFile(f).schema_arrow.metadata
         if meta and meta.get(b"sumw") is not None:
@@ -259,7 +261,7 @@ def get_lumi_weight(year, sample, output_dir, categories):
             # It contributes nothing, so a zero weight is correct - do not crash.
             # Only raise if shards DO exist but carry no/zero sumw metadata, which
             # would be a genuine normalisation problem.
-            shards = glob.glob(
+            shards = eos_glob(
                 f"{output_dir}/parquets_{sample}/{list(categories)[0]}/*.parquet"
             )
             if not shards:
@@ -307,7 +309,7 @@ def save_cutflows(metadata, categories, sample, weight, output_dir):
 
 
 def get_process_dict(output_dir, year, categories):
-    folders = glob.glob(str(output_dir / "*"))
+    folders = eos_glob(str(output_dir / "*"))
     process_dict = defaultdict(list)
 
     dataset_config = get_dataset_config(year)
@@ -315,13 +317,13 @@ def get_process_dict(output_dir, year, categories):
     for folder in folders:
         folder_path = Path(folder)
         name = folder_path.name
+        # one (server-side) listing per folder, not per category
+        folder_content = eos_glob(f"{folder_path}/*")
         for category in categories:
             if name == category:
                 continue
             if category not in process_dict:
                 process_dict[category] = {}
-
-            folder_content = glob.glob(f"{folder_path}/*")
 
             # case where there are multiple partitions and the folder includes only .coffea files
             if any(".coffea" in f for f in folder_content) and not any(
@@ -343,7 +345,7 @@ def get_process_dict(output_dir, year, categories):
             # jobs can land their shards without the cutflow .coffea, which would
             # otherwise silently drop the whole sample from the merge.
             else:
-                if not glob.glob(f"{folder_path}/{category}/*.parquet"):
+                if not eos_glob(f"{folder_path}/{category}/*.parquet"):
                     continue
                 actual_name = (
                     name if name in dataset_config else name.rsplit("_", 1)[0]
@@ -442,12 +444,12 @@ def merge_shifted_parquets_by_sample(output_dir, year, categories, max_workers=N
         if dataset_config[sample].get("era") not in ("mc", "signal"):
             continue
         shift_root = dataset_dir / primary
-        if not shift_root.exists():
+        if not eos_isdir(shift_root):
             continue
-        for shift_dir in sorted(shift_root.iterdir()):
-            if not shift_dir.is_dir():
+        for shift_dir in sorted(Path(p) for p in eos_glob(f"{shift_root}/*")):
+            if not eos_isdir(shift_dir):
                 continue
-            files = sorted(str(p) for p in shift_dir.glob("*.parquet"))
+            files = sorted(eos_glob(f"{shift_dir}/*.parquet"))
             if files:
                 shift_sample_files[(shift_dir.name, sample)].extend(files)
 

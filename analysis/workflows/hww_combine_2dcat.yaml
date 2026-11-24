@@ -43,7 +43,15 @@ negrw:
   datasets:
     - DYto2L_2Jets_10to50
     - DYto2L_2Jets_50
-    - WtoLNu_2Jets
+    # W+jets jet-binned (replaced the inclusive WtoLNu_2Jets, 2026-08-13).
+    # The SAME ensemble applies: P+(x) is a generator property of amc@NLO FxFx,
+    # and these are the same generator/tune/merging sliced by jet multiplicity --
+    # lhe_njets is already an input feature. Verified no extrapolation: the
+    # jet-binned gen phase space sits inside the inclusive sample's support
+    # (2J beyond incl. max Vpt: 0.002%, beyond max HT: 0.000%).
+    - WtoLNu_2Jets_0J
+    - WtoLNu_2Jets_1J
+    - WtoLNu_2Jets_2J
 object_selection:
   muons:
     field: events.Muon

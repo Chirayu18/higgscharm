@@ -54,13 +54,13 @@ EGammaRun2022G:
   xsec: None
 DYto2L_2Jets_50:
   era: mc
-  query: DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  query: DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v5/NANOAODSIM
   process: DY+Jets
   key: dy_nlo
   xsec: 6688.0
 DYto2L_2Jets_10to50:
   era: mc
-  query: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  query: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v5/NANOAODSIM
   process: DY+Jets
   key: dy_nlo
   xsec: 20950.0
@@ -404,12 +404,43 @@ TBbartoLplusNuBbar:
   process: Single Top 
   key: singletop
   xsec: 2.3666148
-WtoLNu_2Jets:
+# W+jets: jet-binned NLO aMCatNLO (0J/1J/2J), replacing the inclusive
+# WtoLNu-2Jets sample (xsec 67710 pb, 281.5M events).
+#
+# AN-23-102 sec 2.3 rejects the inclusive NLO sample: "not used in this study
+# since it has 5 times smaller size than LO and with large fraction of negative
+# weights". The jet-binned samples are the AN's NLO choice.
+#
+# Cross sections from XSDB (13.6 TeV, Run3Summer22EE), retrieved 2026-08-13.
+# Sum = 68821 pb vs the inclusive 67710 pb (+1.6%, normal NLO merging spread).
+# NOTE XSDB labels these accuracy="LO" and matrix_generator="Pythia8"; both are
+# wrong (auto-populated). amcatnloFXFX is NLO -- confirmed by the 10-35%
+# negative-weight fractions, impossible at LO. cross_section is the reliable field.
+#
+# Every 0J event has LHE_Vpt < 100 GeV (measured), so these three are
+# self-contained: no LHE_Vpt cut needed and no overlap with the PTLNu-* samples,
+# which cover W-pT > 100 GeV and are NOT included here (see the full AN stitch).
+#
+# Measured effective statistics (n_eff/N x nevents / xsec):
+#   inclusive    1.91 /fb     jet-binned combined  29.82 /fb  ->  15.6x gain
+WtoLNu_2Jets_0J:
   era: mc
-  query: WtoLNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
-  process: V+Jets 
+  query: WtoLNu-2Jets_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v3/NANOAODSIM
+  process: V+Jets
   key: v+jets
-  xsec: 67710.0
+  xsec: 55760.0
+WtoLNu_2Jets_1J:
+  era: mc
+  query: WtoLNu-2Jets_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: V+Jets
+  key: v+jets
+  xsec: 9529.0
+WtoLNu_2Jets_2J:
+  era: mc
+  query: WtoLNu-2Jets_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: V+Jets
+  key: v+jets
+  xsec: 3532.0
 WGtoLNuG_PTG10to100:
   era: mc
   query: WGtoLNuG-1Jets_PTG-10to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
@@ -469,25 +500,25 @@ GluGluHto2Tau:
   query: GluGluHto2Tau_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: ggH
   key: gghto2tau
-  xsec: 2.9766912
+  xsec: 3.2637552000000003  # mH=125.09, LHCHWG136TeV r7 x YR4 BR(tau)=0.06256 [2026-11-12]
 VBFHToTauTau:
   era: mc
   query: VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: VBF
   key: vbfhto2tau
-  xsec: 0.255872512
+  xsec: 0.25493200000000005  # mH=125.09, LHCHWG136TeV r7 x YR4 BR(tau)=0.06256 [2026-11-12]
 WplusH_WtoLNu_Hto2Wto2L2Nu:
   era: mc
   query: WplusH_WtoLNu_Hto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-minlo-jhugen-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v3/NANOAODSIM
   process: WH
   key: whtoww
-  xsec: 0.006625105011
+  xsec: 0.006601  # LHCHWG-2024-001 Tab.3 mH=125.09 x BR(H->WW)=0.2152 (YR4 Tab.177) x 0.3258^2 x BR(W) [2026-11-05]
 WminusH_Wto2Q_Hto2Wto2L2Nu:
   era: mc
   query: WminusH_Wto2Q_Hto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-minlo-jhugen-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: WH
   key: whtoww
-  xsec: 0.008719124529
+  xsec: 0.008722  # LHCHWG-2024-001 Tab.3 mH=125.09 x BR(H->WW)=0.2152 (YR4 Tab.177) x 0.3258^2 x BR(W) [2026-11-05]
 # --- Added 2026-08-12: the two missing W-decay/charge combinations. -------------
 # The config previously had only WplusH(W->lnu) and WminusH(W->qq): one charge from
 # each W decay mode, an arbitrary pairing that dropped the physically-matched
@@ -510,26 +541,26 @@ WminusH_WtoLNu_Hto2Wto2L2Nu:
   query: WminusH_WtoLNu_Hto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-minlo-jhugen-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: WH
   key: whtoww
-  xsec: 0.0   # UNVERIFIED -- see note above; must be set before use
+  xsec: 0.004215  # LHCHWG-2024-001 (arXiv:2402.09955) Tab.3 13.6TeV mH=125.09 x BR(H->WW)=0.2152 x BR(WW->2l2nu)=0.10615 x BR(W) [2026-11-04]
 WplusH_Wto2Q_Hto2Wto2L2Nu:
   era: mc
   query: WplusH_Wto2Q_Hto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-minlo-jhugen-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: WH
   key: whtoww
-  xsec: 0.0   # UNVERIFIED -- see note above; must be set before use
+  xsec: 0.013659  # LHCHWG-2024-001 (arXiv:2402.09955) Tab.3 13.6TeV mH=125.09 x BR(H->WW)=0.2152 x BR(WW->2l2nu)=0.10615 x BR(W) [2026-11-04]
 # ------------------------------------------------------------------------------
 WminusHTo2Tau:
   era: mc
   query: WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: WH
   key: whto2tau
-  xsec: 0.0356149248
+  xsec: 0.03543141904  # mH=125.09, LHCHWG136TeV r7 x YR4 BR(tau)=0.06256 [2026-11-12]
 WplusHTo2Tau:
   era: mc
   query: WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
   process: WH
   key: whto2tau
-  xsec: 0.0557630976
+  xsec: 0.0554882176  # mH=125.09, LHCHWG136TeV r7 x YR4 BR(tau)=0.06256 [2026-11-12]
 ttHto2C:
   era: mc
   query: ttHto2C_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
@@ -571,3 +602,71 @@ HplusBottom_HtoWW:
   process: H+b
   key: hb
   xsec: 0.016972
+# --- added 2026-10-01 for workflow hww_combine_full / hww_combine_full_ttsyst ---
+# central signal; xsec = PLACEHOLDER (private value) until XSDB value is provided
+HplusCharm_4FS_HToWWTo2L2Nu:
+  era: mc
+  query: HPlusCharm-4FS-MuRFScaleDynX0p50-HToWWTo2L2Nu_M125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: H+c
+  key: hc_central
+  xsec: 0.0016626  # NNLO (Chirayu 2026-11-05): NLO-4FS 0.0022141 x MiNNLOPS-4FS/NLO-4FS = 0.1664/0.2216 (LHCHWG-2026-007 arXiv:2608.26863 Tab.3)
+HplusBottom_5FS_HToWWTo2L2Nu:
+  era: mc
+  query: HPlusBottom_5FS_MuRFScaleDynX0p50-HToWWTo2L2Nu_M125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: H+b
+  key: hb_central
+  xsec: 0.016972
+TTto2L2Nu_Hdamp158:
+  era: mc
+  query: TTto2L2Nu_Hdamp-158_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: tt_hdampDown
+  key: tt_hdamp
+  xsec: 98.578
+TTto2L2Nu_Hdamp418:
+  era: mc
+  query: TTto2L2Nu_Hdamp-418_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v1/NANOAODSIM
+  process: tt_hdampUp
+  key: tt_hdamp
+  xsec: 98.578
+TTto2L2Nu_MT171p5:
+  era: mc
+  query: TTto2L2Nu_MT-171p5_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: tt_mtopDown
+  key: tt_mtop
+  xsec: 98.578
+TTto2L2Nu_MT173p5:
+  era: mc
+  query: TTto2L2Nu_MT-173p5_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: tt_mtopUp
+  key: tt_mtop
+  xsec: 98.578
+TTto2L2Nu_TuneCP5Down:
+  era: mc
+  query: TTto2L2Nu_TuneCP5Down_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: tt_tuneDown
+  key: tt_tune
+  xsec: 98.578
+TTto2L2Nu_TuneCP5Up:
+  era: mc
+  query: TTto2L2Nu_TuneCP5Up_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
+  process: tt_tuneUp
+  key: tt_tune
+  xsec: 98.578
+
+# --- Route B (2026-11-12, workflow hww_routeb_3fs4fs): private 3FS H->WW re-NANO (LHEPdfWeight LHA 321900,
+# NNPDF31_nnlo_pch_as_0118_nf_3 MC replicas), stitched with HplusCharm_4FS_HToWWTo2L2Nu (LHCHWG-2026-007 sec. 4.4).
+# xsec = sigma_NNLO(ccH) x BR, IDENTICAL to the 4FS entry by construction; the per-scheme factor c_3FS and the
+# >=1 GEN c-jet mask come from analysis/stitching (workflow `stitching:` block). Using this entry WITHOUT the
+# stitching hook double-counts H+c. Key hc_3fs is in no Run A workflow. DAS instance prod/phys03.
+HplusCharm_3FS_HToWW:
+  era: mc
+  query: HPlusCharm_3FS_HToWW_M-125_TuneCP5_13p6TeV_amcatnlo-pythia8/cgupta-Run3Summer22EENanoAODv13-HToWW-133X_mcRun3_2022_realistic_postEE_ForNanov13_v1-3FS-PDF321900-0407852425075af9188b7b2664ca6979/USER
+  process: H+c
+  key: hc_3fs
+  xsec: 0.0016626  # sigma_NNLO x BR (= 4FS entry); NOT a 3FS cross section, see comment above
+HplusCharm_3FS_HToWW_ext1:
+  era: mc
+  query: HPlusCharm_3FS_HToWW_M-125_TuneCP5_13p6TeV_amcatnlo-pythia8/cgupta-Run3Summer22EENanoAODv13-HToWW-133X_mcRun3_2022_realistic_postEE_ForNanov13_v1-3FS_ext1-PDF321900-0407852425075af9188b7b2664ca6979/USER
+  process: H+c
+  key: hc_3fs
+  xsec: 0.0016626  # sigma_NNLO x BR (= 4FS entry); NOT a 3FS cross section, see comment above

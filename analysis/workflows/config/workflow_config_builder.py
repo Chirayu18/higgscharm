@@ -67,6 +67,9 @@ class WorkflowConfigBuilder:
         for name, vals in self.config["corrections"]["event_weights"].items():
             if isinstance(vals, bool):
                 corrections["event_weights"][name] = vals
+            elif isinstance(vals, list) and all(isinstance(v, str) for v in vals):
+                # plain list of names, e.g. lhe_renorm_datasets (2026-10-02)
+                corrections["event_weights"][name] = list(vals)
             elif isinstance(vals, list):
                 corrections["event_weights"][name] = {}
                 for val in vals:

@@ -587,7 +587,11 @@ class ObjectSelector:
         # sort jets by pt in descending order (first element has highest pt ...)
         jets = self.objects["jets"]
         jets = jets[ak.argsort(jets.pt, ascending=False, axis=1)]
-        jets = ak.pad_none(self.objects['jets'], target=3)
+        # 2026-11-05 Sol review: direct jet columns must use the same order as jet1/2/3.
+        self.objects["jets"] = jets
+        # FIX 2026-11-04 (P0-6): the sorted array used to be thrown away (padded self.objects['jets'] instead), so
+        # jet1/2/3 were in NanoAOD order, not re-sorted after JEC/JER re-correction or under JES/JER shifts
+        jets = ak.pad_none(jets, target=3)
         def make_candidate(jet):
             return ak.zip(
                 {
@@ -648,6 +652,31 @@ class ObjectSelector:
         self.objects["delta_R_ll_c"]= (
             ll_pair.delta_r(cjet)
         )
+
+    def select_gen_fs(self, obj_name):
+        # GEN-level quantities for the H+c flavour-scheme (3FS vs 4FS) uncertainty,
+        # following the FS "stitching" definition (T. Bevilacqua, 23-06-26, slide 22):
+        # GEN c-jets = GenJet with hadronFlavour==4, pt>20, |eta|<2.4 (the analysis
+        # c-jet acceptance). Exposes gen_higgs_pt, gen_ncjets, gen_cjet1_pt so a
+        # 3FS/4FS ratio derived on NanoGEN can be evaluated per event. MC-only.
+        z = ak.values_astype(self.events.event * 0, np.float32)
+        if "GenJet" not in self.events.fields or "GenPart" not in self.events.fields:
+            for k in ["gen_higgs_pt", "gen_ncjets", "gen_cjet1_pt", "gen_chad1_pt"]:
+                self.objects[k] = z
+            return
+        # gen_chad1_pt: leading weakly-decaying GEN c-hadron pT (the variable the delivered 3FS/4FS correctionlib is
+        # binned in, analysis/corrections/hplusc_fs.py). 2026-11-04. gen_cjet1_pt (GenJet) is kept for the c-jet variant.
+        from analysis.corrections.hplusc_fs import gen_chad1_pt as _gen_chad1_pt
+        self.objects["gen_chad1_pt"] = ak.values_astype(ak.Array(_gen_chad1_pt(self.events)), np.float32)
+        gp = self.events.GenPart
+        is_last = (gp.statusFlags >> 13) & 1 == 1
+        higgs = gp[(gp.pdgId == 25) & is_last]
+        self.objects["gen_higgs_pt"] = ak.fill_none(ak.firsts(higgs.pt), -1.0)
+        gj = self.events.GenJet
+        cj = gj[(gj.hadronFlavour == 4) & (gj.pt > 20) & (np.abs(gj.eta) < 2.4)]
+        cj = cj[ak.argsort(cj.pt, ascending=False)]
+        self.objects["gen_ncjets"] = ak.num(cj)
+        self.objects["gen_cjet1_pt"] = ak.fill_none(ak.firsts(cj.pt), -1.0)
 
     def select_gen_partons(self, obj_name):
         # Generator-level LHE partons for the negative-weight reweighting fix

@@ -1,0 +1,95 @@
+{
+  "source_commit": "8f0454098fc2168a713ab8dac76a0330c9c35955",
+  "excluded_files": [
+    {
+      "path": "analysis/data/lhe_yukawa/hplusbottom_5fs_table.txt",
+      "sha256": "7ccceaf181e396592057da2c8c9a395b7f8a9065265836f2f1808c030b136c66",
+      "bytes": 582097,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/lhe_yukawa/hpluscharm_4fs_table.txt",
+      "sha256": "195b8ba4d66acb81c5bdc40edbe210c0c86c335d059ef1534722f3fb6f57b944",
+      "bytes": 582097,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/muon_HWW/2022postEE_muonSF_latinos_HWW.json",
+      "sha256": "5fcba554fde9e83f67ad670e7d4b3e5c1a258a320ef3cfea58a19cb6be863705",
+      "bytes": 1270461,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/muon_HWW/2022preEE_muonSF_latinos_HWW.json",
+      "sha256": "fbf976f74734b15a82e09b082a3f7c1ab188867c941f1faba7ac585336b78d9e",
+      "bytes": 1269206,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/muon_HWW/2023postBPix_muonSF_latinos_HWW.json",
+      "sha256": "95232bce6a895bc973ce1879b016c48b4157ee4a80ea51c42312389619779258",
+      "bytes": 1269700,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/muon_HWW/2023preBPix_muonSF_latinos_HWW.json",
+      "sha256": "0cb1f0717f3f543b8f8819097b01978cc71743e2d2fa7ebf9c7319d35afc5eb5",
+      "bytes": 1269925,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/tthMVA_2022-2023_retrained/electron_mvaTTH_2022EE.onnx",
+      "sha256": "215dad89072bd8ad777f015d1e3ae87ed50f96ea663e27b4f253eabbf097d3de",
+      "bytes": 398062,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "analysis/data/tthMVA_2022-2023_retrained/muon_mvaTTH_2022EE.onnx",
+      "sha256": "1ebebd0d58f6e4a723fc77e07c815d439807164fc79c355eebbf3d68a72d70f7",
+      "bytes": 378760,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "scripts/plots/make_deck_plots.py",
+      "sha256": "8ea97273c33e53852f9577c9e701bca5ae23d6a157c8dfa82af44f0f8a386e3e",
+      "bytes": 5780,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "tests/data/mode_models/fold_0.onnx",
+      "sha256": "e2c8e9d26f9abeb807de2f617736189be6219336da392a5da9baf1dc8a5e9b19",
+      "bytes": 837,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "tests/data/mode_models/fold_1.onnx",
+      "sha256": "784a27b75f958a2b6e2ff1039fdfb1d237d89b6dea62c8f91660e7e215dd006a",
+      "bytes": 837,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "tests/data/mode_models/fold_2.onnx",
+      "sha256": "b45e36131d58ae010d010c0a3137776e3bef9ffea72d51056383808bac93375b",
+      "bytes": 837,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "tests/data/mode_models/fold_3.onnx",
+      "sha256": "93081d773c6e053b613004918dcfec59d5b904dd892c78858d529f8b359a4383",
+      "bytes": 837,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "tests/data/mode_models/fold_4.onnx",
+      "sha256": "9a585311466c7c37f609263fdc9edf3abf5c0a9115f153d39300346224bbe4af",
+      "bytes": 837,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    },
+    {
+      "path": "tests/data/tthmva_ref_fixture.npz",
+      "sha256": "2d988c87ed885c845d713b918cb29952f5044afe30fabcdb33124f3da11a8077",
+      "bytes": 111444,
+      "reason": "binary/model or large calibration payload or saved-results plotting script"
+    }
+  ]
+}

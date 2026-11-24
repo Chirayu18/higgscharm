@@ -11,6 +11,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from analysis.corrections.ctag2d_categories import ONEHOT_PREFIX, onehot_columns
+
 
 def run_inference(
     output_dir,
@@ -133,6 +135,24 @@ def run_inference(
             logging.warning(f"  Skipping empty file: {pq_file.name}")
             df.to_parquet(mva_dir / pq_file.name)
             continue
+
+        # FIX 2026-11-04 (P0-7): the 2D-cat models take 11 cjet_cand_ctag2d_* one-hot inputs that nothing in the
+        # processor writes; they are a deterministic function of the PNet cvsl/cvsb scores. Without this the model
+        # silently saw an all-zero category vector (missing features are filled with 0). Same assignment as
+        # b-hive scripts/append_onehot.py and the CMS_ctag2d scale factors (ctag2d_categories.py). The columns
+        # are also written to the mva parquet, like append_onehot.py does.
+        missing_oh = [f for f in features if f.startswith(ONEHOT_PREFIX) and f not in df.columns]
+        if missing_oh:
+            if "cjet_cand_cvsl_pnet" not in df.columns or "cjet_cand_cvsb_pnet" not in df.columns:
+                raise KeyError(
+                    f"{pq_file.name}: model needs {missing_oh[:3]}... but cjet_cand_cvsl_pnet / cjet_cand_cvsb_pnet "
+                    "are not in the parquet, cannot derive the c-tag 2D one-hots"
+                )
+            oh = onehot_columns(df["cjet_cand_cvsl_pnet"].to_numpy(), df["cjet_cand_cvsb_pnet"].to_numpy())
+            for name, arr in oh.items():
+                df[name] = arr
+            logging.info(f"  derived {len(oh)} ctag2d one-hot columns "
+                         f"({int((sum(oh.values()) > 0).sum())}/{len(df)} events categorised)")
 
         # Extract features in config order, fill missing with 0
         feature_arrays = []

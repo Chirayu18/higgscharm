@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from collections import defaultdict
 
 from analysis.utils import make_output_directory
+from analysis.utils.output_dir_maker import output_workflow_name
 from analysis.filesets.xrootd_sites import xroot_to_site
 from analysis.filesets.utils import (
     divide_list,
@@ -73,6 +74,17 @@ def parse_args():
         "--reset",
         action="store_true",
         help="Delete all job outputs, logs, and filesets for this workflow/year and rerun",
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["legacy", "train", "run"],
+        default="legacy",
+        help="processing mode of the prepared jobs (TRAIN/RUN live under <workflow>__<mode>)",
+    )
+    parser.add_argument(
+        "--output_root",
+        default=None,
+        help="the --output_root used when preparing the jobs (unset: default area)",
     )
     parser.add_argument(
         "--single_fetch",
@@ -311,6 +323,27 @@ def group_datasets_by_sites(dataset_sites):
     return groups
 
 
+def _store_path(url):
+    i = url.find("/store/")
+    return url[i:] if i >= 0 else url
+
+
+def merge_filesets(previous, regenerated, datasets):
+    """Previous full fileset with only `datasets` replaced by their regenerated lists.
+
+    A regenerated dataset must contain the same /store/ files (only replicas may
+    change); otherwise the jobs already run and the new partitions would disagree.
+    """
+    merged = dict(previous)
+    for d in datasets:
+        if d not in regenerated:
+            continue
+        if d in previous and {_store_path(f) for f in previous[d]} != {_store_path(f) for f in regenerated[d]}:
+            raise RuntimeError(f"[{d}] regenerated fileset changes the /store/ file set; refusing to merge")
+        merged[d] = regenerated[d]
+    return merged
+
+
 def update_input_filesets_for_group(
     sites_to_blacklist, year, fileset_dir, job_dir, datasets
 ):
@@ -356,6 +389,13 @@ def update_input_filesets_for_group(
     for site in sites_to_blacklist:
         modify_site_list(year, site, "black")
 
+    # fetch.py rewrites the era fileset JSON with ONLY the requested samples. Snapshot
+    # the full file first and merge the regenerated datasets back into it afterwards
+    # (2026-11-12 fix: previously every regeneration truncated the fileset to the group).
+    nano_version = get_nano_version(year)
+    fileset_path = fileset_dir / f"fileset_{year}_nanov{nano_version}_lxplus.json"
+    previous = json.loads(fileset_path.read_text()) if fileset_path.exists() else {}
+
     # Run fetch.py once for the entire dataset group.
     samples_str = " ".join(datasets)
     print("Running fetch.py for this group...")
@@ -364,10 +404,10 @@ def update_input_filesets_for_group(
         check=True,
     )
 
-    # Load the regenerated filesets
-    nano_version = get_nano_version(year)
-    fileset_path = fileset_dir / f"fileset_{year}_nanov{nano_version}_lxplus.json"
-    all_filesets = json.loads(fileset_path.read_text())
+    # Load the regenerated filesets and merge them into the previous full fileset
+    regenerated = json.loads(fileset_path.read_text())
+    all_filesets = merge_filesets(previous, regenerated, datasets)
+    fileset_path.write_text(json.dumps(all_filesets, indent=4))
 
     # Regenerate partitions.json for each dataset in the group
     for dataset in datasets:
@@ -452,6 +492,11 @@ def resubmit_jobs(job_dir, jobnum_missing, datasets_with_missing_jobs, workflow,
 def main():
     args = parse_args()
 
+    if args.reset and args.mode != "legacy":
+        # --reset deletes job artifacts and reruns runner.py without mode/model options.
+        raise SystemExit("--reset is only supported for legacy jobs; prepare TRAIN/RUN jobs explicitly")
+    job_workflow = output_workflow_name(args.workflow, args.mode)
+
     # Optional full reset
     if args.reset:
         print("------------------------------------------------------------")
@@ -489,17 +534,20 @@ def main():
         ]
         if args.eos:
             reset_cmd.append("--eos")
+        if args.output_root:
+            reset_cmd += ["--output_root", args.output_root]
 
         print("Re-running full workflow via runner.py...")
         subprocess.run(reset_cmd, check=True)
         print("Reset complete.\n")
 
     # Directory setup
-    output_dir = Path(make_output_directory(args))
+    output_dir = Path(make_output_directory(args, workflow_name=job_workflow))
     base_dir = Path.cwd()
     condor_dir = base_dir / "condor"
-    job_dir = condor_dir / args.workflow / args.year
-    log_dir = condor_dir / "logs" / args.workflow / args.year
+    job_dir = condor_dir / job_workflow / args.year
+    log_dir = condor_dir / "logs" / job_workflow / args.year
+    check_prepared_jobs(job_dir, output_dir, args.mode)
     fileset_dir = base_dir / "analysis" / "filesets"
 
     # Discover job state
@@ -551,9 +599,27 @@ def main():
             job_dir,
             jobnum_missing,
             datasets_with_missing_jobs,
-            args.workflow,
+            job_workflow,
             args.year,
         )
+
+
+def check_prepared_jobs(job_dir, output_dir, mode):
+    """Prepared jobs must match the monitored mode and output directory.
+
+    Otherwise completion would be judged in the wrong place (a TRAIN job's
+    .coffea is not in the legacy directory, or vice versa).
+    """
+    if not job_dir.is_dir():
+        raise SystemExit(f"No prepared jobs at {job_dir}")
+    for args_json in sorted(job_dir.glob("*/arguments.json")):
+        prepared = json.loads(args_json.read_text())
+        if prepared.get("mode", "legacy") != mode:
+            raise SystemExit(f"{args_json}: prepared for mode {prepared.get('mode', 'legacy')!r}, not {mode!r}")
+        expected = output_dir / args_json.parent.name
+        if Path(prepared["output_path"]) != expected:
+            raise SystemExit(f"{args_json}: output_path {prepared['output_path']} != monitored {expected}; "
+                             "pass the same --output_root/--eos used at preparation")
 
 
 if __name__ == "__main__":

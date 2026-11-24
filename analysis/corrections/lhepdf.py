@@ -1,8 +1,15 @@
 import numpy as np
 import awkward as ak
 
+# FIX 2026-10-06: cap the per-event relative PDF / alphaS spread. A handful of events in the powheg-MiNNLO
+# WH->tautau samples have spreads of O(100-1000), which made the summed lhe_pdf Up 22x the nominal and leaked
+# a 6x higgsbkg lhe_pdf template into the 2022postEE card. Outliers (delta > cap) are <1% of events in every
+# other sample, where the cap changes the integrated variation by <1%. Same spirit as the outlier threshold
+# (0.5) of the columnflow pdf_weights producer.
+PDF_DELTA_CAP = 0.5
 
-def add_lhepdf_weight(events, weights_container, shift):
+
+def add_lhepdf_weight(events, weights_container, shift, pdf_norm=None):
     """
     Add PDF, αs, and combined (PDF⊕αs) systematic weight variations to the Weights container.
 
@@ -36,6 +43,16 @@ def add_lhepdf_weight(events, weights_container, shift):
     if shift is None:
         if "LHEPdfWeight" in events.fields:
             pdfweights = events.LHEPdfWeight
+            # optional per-file normalisation (lhe_norm.py): member k -> w_k / <w_k>_gen
+            if pdf_norm is not None and len(pdf_norm) == int(ak.max(ak.num(pdfweights))):
+                _n = np.where(np.asarray(pdf_norm) > 0, np.asarray(pdf_norm), 1.0)
+                pdfweights = ak.from_regular(ak.to_regular(pdfweights) / _n[None, :])
+                # In these samples member 0 is ALSO inconsistent with the replicas event by event (offset
+                # varies per event while the replicas agree to ~0.5%), so the Hessian sum vs member 0 adds the
+                # offset 100x. Use the per-event mean of the (normalised) eigen-members as the centre instead.
+                _w = ak.to_numpy(ak.to_regular(pdfweights)).astype(np.float64)
+                _w[:, 0] = _w[:, 1:101].mean(axis=1)
+                pdfweights = ak.from_regular(ak.Array(_w))
             n_members = ak.num(pdfweights)
 
             # Case 2: 103 members → PDF + αs
@@ -44,7 +61,7 @@ def add_lhepdf_weight(events, weights_container, shift):
                 w0 = pdfweights[:, 0]  # central (mem=0)
                 w_all = pdfweights[:, 1:101]  # mem=1..100
                 diffs = (w_all - w0[:, None]) ** 2
-                delta_pdf = np.sqrt(ak.sum(diffs, axis=1))
+                delta_pdf = np.minimum(np.sqrt(ak.sum(diffs, axis=1)), PDF_DELTA_CAP)
 
                 w_up_pdf = 1 + delta_pdf
                 w_down_pdf = 1 - delta_pdf
@@ -52,7 +69,10 @@ def add_lhepdf_weight(events, weights_container, shift):
                 # αs
                 w_as_low = pdfweights[:, 101]
                 w_as_high = pdfweights[:, 102]
-                delta_alpha = 0.5 * np.abs(w_as_high - w_as_low)
+                # FIX 2026-10-29 (ported from the HcZZ branch, her 2026-08-19 fix): alphaS is a signed
+                # shift, Up = alphaS 0.120. np.abs forced Up >= 1 and Down <= 1 for every event and lost the
+                # per-event sign. The cap still bounds the magnitude.
+                delta_alpha = np.clip(0.5 * (w_as_high - w_as_low), -PDF_DELTA_CAP, PDF_DELTA_CAP)
                 w_up_alpha = 1 + delta_alpha
                 w_down_alpha = 1 - delta_alpha
 
@@ -66,7 +86,7 @@ def add_lhepdf_weight(events, weights_container, shift):
                 w0 = pdfweights[:, 0]
                 w_all = pdfweights[:, 1:101]
                 diffs = (w_all - w0[:, None]) ** 2
-                delta_pdf = np.sqrt(ak.sum(diffs, axis=1))
+                delta_pdf = np.minimum(np.sqrt(ak.sum(diffs, axis=1)), PDF_DELTA_CAP)
 
                 w_up_pdf = 1 + delta_pdf
                 w_down_pdf = 1 - delta_pdf
@@ -74,8 +94,9 @@ def add_lhepdf_weight(events, weights_container, shift):
                 print("skiping AlphaS systematic Weight")
                 w_up_alpha = ak.ones_like(delta_pdf)
                 w_down_alpha = ak.ones_like(delta_pdf)
-                w_up_total = ak.ones_like(delta_pdf)
-                w_down_total = ak.ones_like(delta_pdf)
+                # With no alphaS members, PDF (+) alphaS reduces to the PDF uncertainty.
+                w_up_total = w_up_pdf
+                w_down_total = w_down_pdf
             else:
                 print("skiping PDF/AlphaS systematic Weight")
                 delta_pdf = np.ones(len(events))

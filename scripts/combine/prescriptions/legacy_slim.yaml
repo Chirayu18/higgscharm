@@ -1,0 +1,20 @@
+# Card-only preparation for either A or B; not a production-ready physics model.
+# Sources: Chirayu 16 Nov review-todos and 12 Nov higgs_scale_variants.py.
+# tt constraint, H+c alphaS, H+b PDF+alphaS, BR, c-tag and ttH remain open.
+# Keep nominal A/B cards/results untouched; builder refuses an existing output.
+alternative_samples:
+  tt_hdamp:
+    process: tt
+    # Only the dilepton component has supplied hDamp samples. Other tt retained.
+    nominal_samples: [TTto2L2Nu]
+    samples:
+      Up: [TTto2L2Nu_Hdamp418]
+      Down: [TTto2L2Nu_Hdamp158]
+# Candidate scope below includes H+c: confirm signal inclusion versus the old
+# V2 background-only scope before production. No workflow enables this policy.
+# Remove rates across all final SR/CR channels of each era, retaining migrations.
+# tt is currently suppressed by no_theory; its final model needs the tt decision.
+shape_only_systematics:
+  scalevar_muR: [hplusc, higgsbkg, st, diboson, vjets]
+  scalevar_muF: [hplusc, higgsbkg, st, diboson, vjets]
+  scalevar_muR_muF: [hplusc, higgsbkg, st, diboson, vjets]

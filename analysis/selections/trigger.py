@@ -5,14 +5,28 @@ import importlib.resources
 from analysis.filesets.utils import get_dataset_name
 
 
+# 2026-11-05 (HTOWW-FRAMEWORK-SPEEDUP-2): trigger_flags.yaml was re-parsed on every
+# get_hltpaths_from_flag call (45 x per chunk). Parse it once per process; callers get a
+# copy of the path list, so the cached data cannot be mutated.
+_TRIGGER_FLAGS = None
+
+
+def _trigger_flags():
+    global _TRIGGER_FLAGS
+    if _TRIGGER_FLAGS is None:
+        with importlib.resources.open_text(
+            f"analysis.selections", f"trigger_flags.yaml"
+        ) as file:
+            _TRIGGER_FLAGS = yaml.safe_load(file)
+    return _TRIGGER_FLAGS
+
+
 def get_hltpaths_from_flag(flag, year):
-    with importlib.resources.open_text(
-        f"analysis.selections", f"trigger_flags.yaml"
-    ) as file:
-        hlt_paths = yaml.safe_load(file)
+    hlt_paths = _trigger_flags()
     trigger_flags = hlt_paths[int(year[:4])]
     if flag in trigger_flags:
-        return trigger_flags[flag]
+        paths = trigger_flags[flag]
+        return list(paths) if isinstance(paths, list) else paths
     else:
         print(f"Trigger flag {flag} is not defined for year {year}")
 
@@ -122,6 +136,24 @@ def trigger_mask(events, hlt_paths, dataset, year):
             mask = mask & ~other_masks
         dataset_masks[dataset] = mask
 
+    # FIX 2026-11-04 (P0-3): Run2022C has the SingleMuon and DoubleMuon primary datasets (the "Muon" PD only exists
+    # from 2022D). Both used to miss `dataset_masks` and fall through to the OR of ALL triggers, so every
+    # MuonEG/EGamma event was counted again and SingleMuon/DoubleMuon duplicated each other.
+    #   SingleMuon -> same logic as "Muon" (SingleMu & ~MuEle);
+    #   DoubleMuon -> no analysis trigger is a DoubleMuon-PD path, so it contributes nothing (zero mask).
+    # Unknown data PDs now raise instead of silently using the OR of everything.
+    is_data = not hasattr(events, "genWeight")
+    if is_data:
+        if dataset_name == "SingleMuon":
+            dataset_name = "Muon"
+        elif dataset_name == "DoubleMuon":
+            return np.zeros(len(events), dtype="bool")
+        elif dataset_name not in dataset_masks:
+            raise ValueError(
+                f"trigger_mask: no trigger logic for data primary dataset '{dataset_name}'; "
+                f"known: {sorted(dataset_masks)}. Add it to hlt_paths / get_dataset_name instead of "
+                "falling back to the OR of all triggers (double counting)."
+            )
     return dataset_masks.get(dataset_name, all_combined_mask)
 
 

@@ -99,8 +99,8 @@ def update_met(events, other_obj, met_obj="PuppiMET") -> None:
     delta_y = new_py - old_py
 
     # propagate changes to MET (x, y) components
-    met_px = met_pt * np.cos(met_phi) + delta_x
-    met_py = met_pt * np.sin(met_phi) + delta_y
+    met_px = met_pt * np.cos(met_phi) - delta_x
+    met_py = met_pt * np.sin(met_phi) - delta_y
 
     # propagate changes to MET (pT, phi) components
     met_pt = np.sqrt((met_px**2.0 + met_py**2.0))

@@ -8,6 +8,8 @@ should_transfer_files = YES
 transfer_input_files  = INPUTFILES
 
 request_memory        = MEMORY
+# 2026-11-10: match the two futures workers in submit.py
+request_cpus          = 2
 
 +JobFlavour           = JOBFLAVOR
 +SingularityImage     = IMAGE

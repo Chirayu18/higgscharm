@@ -11,20 +11,39 @@ from analysis.corrections.lhepdf import add_lhepdf_weight
 from analysis.corrections.electron import ElectronWeights
 from analysis.corrections.jerc import apply_jerc_corrections
 from analysis.corrections.lhescale import add_scalevar_weight
+from analysis.corrections.lhe_norm import lhe_variation_means
+from analysis.corrections.lhe_yukawa_fix import table_for_dataset
+from analysis.corrections.hplusc_fs import add_hplusc_fs_weight
 from analysis.corrections.met import apply_met_phi_corrections
+from analysis.corrections.met_propagation import propagate_lepton_shifts
+from analysis.corrections.met_xy import apply_run3_met_xy
 from analysis.corrections.muon_ss import apply_muon_ss_corrections
 from analysis.corrections.partonshower import add_partonshower_weight
 from analysis.corrections.toppt import add_toppt_weight
 from analysis.corrections.higgs_hf import add_higgs_hf_weight
 from analysis.corrections.electron_ss import apply_electron_ss_corrections
+from analysis.leptonmva import add_tthmva_scores, TTHMVA_YEARS
 
 
 def object_corrector_manager(events, year, corrections_config):
     """apply object level corrections"""
     objcorr_config = corrections_config["object"]
+    # Workflows historically use a list; accept an explicit mapping as well.
+    object_options = (objcorr_config if isinstance(objcorr_config, dict)
+                      else {key: True for key in (objcorr_config or [])})
 
+    # Keep the uncalibrated reference before either correction can replace pt.
+    original_leptons = {key: events[key] for key, option in
+                        (('Muon', 'muon'), ('Electron', 'electron'))
+                        if option in (objcorr_config or {})}
     shifts = []
     if objcorr_config:
+        # 2026-11-05: retrained ttH lepton MVA (analysis/leptonmva/tth.py). Scores are computed once, on NanoAOD-level
+        # inputs, before the muon/electron scale corrections, so every shift pass below inherits Muon/Electron.tthMVA.
+        if "tthMVA" in objcorr_config:
+            if year not in TTHMVA_YEARS:
+                raise ValueError(f"tthMVA requested for {year}; the retrained model is defined for {TTHMVA_YEARS} only")
+            add_tthmva_scores(events, year)
         # apply jet energy scale and smearing corrections
         if "jet" in objcorr_config:
             shifts = apply_jerc_corrections(
@@ -36,6 +55,12 @@ def object_corrector_manager(events, year, corrections_config):
         else:
             met_field_key = "PuppiMET" if int(get_nano_version(year)) >= 12 else "MET"
             shifts = [({"Jet": events.Jet, "MET": events[met_field_key]}, None)]
+
+        # XY is evaluated after JEC, before either lepton correction. Every
+        # existing jet/MET shift is corrected and the new XY pair inherits the
+        # nominal jet collection; leptons are added and propagated below.
+        if object_options.get("met_phi", False):
+            shifts = apply_run3_met_xy(events, year, shifts, corrections_config)
 
         if "muon" in objcorr_config:
             # apply muon scale and smearing corrections
@@ -62,6 +87,11 @@ def object_corrector_manager(events, year, corrections_config):
         else:
             for i in range(len(shifts)):
                 shifts[i][0]["Electron"] = events.Electron
+
+        # Opt-in for the new production; existing workflows keep their numerical
+        # convention. Every nominal/object shift receives both lepton changes.
+        if object_options.get("propagate_leptons_to_met", False):
+            shifts = propagate_lepton_shifts(shifts, original_leptons)
 
         # apply jet veto
         if "jetveto" in objcorr_config:
@@ -105,6 +135,14 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                         weights_container=weights_container,
                         shift=shift,
                     )
+        # per-dataset LHE variation normalisation (lhe_norm.py), opt-in via lhe_renorm_datasets
+        _lhe_norm = (None, None)
+        # dataset arrives as <sample>_<partition> (condor) -> match the sample-name prefix
+        if shift is None and any(dataset == d or dataset.startswith(d + "_")
+                                 for d in (weights_config.get("lhe_renorm_datasets") or [])):
+            _lhe_norm = lhe_variation_means(pruned_ev.metadata["filename"])
+            if table_for_dataset(dataset) is None:
+                raise RuntimeError(f"{dataset} is in lhe_renorm_datasets but has no lhe_yukawa table")
         if "lhepdfWeight" in weights_config:
             if weights_config["lhepdfWeight"]:
                 if "LHEPdfWeight" in pruned_ev.fields:
@@ -112,14 +150,18 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                         events=pruned_ev,
                         weights_container=weights_container,
                         shift=shift,
+                        pdf_norm=_lhe_norm[1],
                     )
         if "lhescaleWeight" in weights_config:
             if weights_config["lhescaleWeight"]:
                 if "LHEScaleWeight" in pruned_ev.fields:
+                    # lhe_renorm datasets: per-event Yukawa correction for scale (global mean kept for PDF only)
                     add_scalevar_weight(
                         events=pruned_ev,
                         weights_container=weights_container,
                         shift=shift,
+                        scale_norm=None,
+                        yukawa_table=table_for_dataset(dataset) if _lhe_norm[0] is not None else None,
                     )
         if "nnlopsWeight" in weights_config:
             if weights_config["nnlopsWeight"]:
@@ -150,6 +192,17 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                     # signal is H+c, so the c-flavour variant is the relevant one.
                     flav="c",
                 )
+        if "hpluscFSShape" in weights_config:
+            if weights_config["hpluscFSShape"]:
+                # 3FS-vs-4FS flavour-scheme SHAPE nuisance (2026-11-04), central 4FS H+c only: the value is the list of
+                # datasets (prefix match) it is added to; leading GEN c-hadron pT binned weights (hplusc_fs.py)
+                add_hplusc_fs_weight(
+                    events=pruned_ev,
+                    weights_container=weights_container,
+                    shift=shift,
+                    dataset=dataset,
+                    datasets=weights_config["hpluscFSShape"],
+                )
         if "muon" in weights_config:
             if weights_config["muon"]:
                 if "selected_muons" in pruned_ev.fields:
@@ -170,6 +223,13 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                                 id_wp=weights_config["muon"]["id"],
                                 iso_wp=weights_config["muon"]["iso"],
                             )
+                    # 2026-11-05: retrained ttH lepton-MVA working point SF (HWW/latinos JSON), tvl/MVA port
+                    if weights_config["muon"].get("promptMVA"):
+                        muon_weights.add_promptMVA_weights(
+                            id_wp=weights_config["muon"]["id"],
+                            iso_wp=weights_config["muon"]["iso"],
+                            promptMVA_wp=weights_config["muon"]["promptMVA"],
+                        )
                     if "trigger" in weights_config["muon"]:
                         if weights_config["muon"]["trigger"]:
                             muon_weights.add_trigger_weights(
@@ -192,6 +252,12 @@ def weight_manager(pruned_ev, year, dataset, workflow_config, category, shift):
                             electron_weights.add_id_weights(
                                 id_wp=weights_config["electron"]["id"]
                             )
+                    # 2026-11-05: retrained ttH lepton-MVA working point SF (HWW/latinos JSON), tvl/MVA port
+                    if weights_config["electron"].get("promptMVA"):
+                        electron_weights.add_promptMVA_weights(
+                            id_wp=weights_config["electron"]["id"],
+                            promptMVA_wp=weights_config["electron"]["promptMVA"],
+                        )
                     if "reco" in weights_config["electron"]:
                         if weights_config["electron"]["reco"]:
                             if nano_version == "9":

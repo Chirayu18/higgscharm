@@ -262,6 +262,42 @@ def get_corr_inputs(input_dict, corr_obj, jersyst="nom"):
     return input_values
 
 
+# Type-1 MET jet selection (P0-5, 2026-11-04). The NanoAOD PuppiMET already contains the Type-1 term of the NanoAOD JECs,
+# summed only over jets that enter the CMS Type-1 recipe: muon-subtracted corrected pT > 15 GeV and
+# chEmEF + neEmEF < 0.9 (jets overlapping PF muons are handled through the muon-subtracted pT, factor
+# 1 - muonSubtrFactor). Re-correcting MET with ALL jets added soft / EM-dominated jets that never were in the MET.
+# The MET difference is built from the thresholded jet sets of the NanoAOD jets and of the re-corrected jets
+# separately (a jet near threshold may enter in only one of them). JER smearing stays propagated (CMS recipe).
+TYPE1_MIN_PT = 15.0
+TYPE1_MAX_EMF = 0.9
+
+
+def type1_jet_pt(jets, pt):
+    """Per-jet Type-1 contribution (pT - raw pT) * (1 - muonSubtrFactor) for jets passing the Type-1 selection, else 0.
+
+    Type-1: MET = MET_raw - sum_sel (pT_corr - pT_raw) (muon-subtracted). A jet outside the selection leaves its raw
+    momentum inside MET (unclustered), so a jet that enters the sum only after re-correction adds (new - raw), not new."""
+    for fld in ("chEmEF", "neEmEF", "muonSubtrFactor", "pt_raw"):
+        if fld not in jets.fields:
+            raise KeyError(f"Type-1 MET selection needs Jet_{fld} (NanoAODv12); missing from the Jet collection")
+    f = 1.0 - jets.muonSubtrFactor
+    keep = (pt * f > TYPE1_MIN_PT) & ((jets.chEmEF + jets.neEmEF) < TYPE1_MAX_EMF)
+    return ak.where(keep, (pt - jets.pt_raw) * f, 0.0)
+
+
+def type1_corrected_met(nocorrmet, jets, new_pt):
+    """MET_new = MET_nano - sum_{Type-1 jets}(new - nano), on top of the stored (already Type-1) PuppiMET.
+
+    coffea's corrected_polar_met(met_pt, met_phi, jet_pt, jet_phi, jet_pt_orig) = MET - sum(jet_pt - jet_pt_orig) (vector),
+    so jet_pt = NEW pT and jet_pt_orig = NanoAOD pT. SIGN CHECK 2026-11-04 on a real file: this order correlates +0.48
+    with NanoAOD's own PuppiMET_{pt,phi}JESUp shift; the argument order used since 2026-10-06 (nano, new) anti-correlates
+    (-0.48): a jet scaled up moved MET along the jet instead of against it. (The HEAD code, (met, new, raw), double
+    counted because PuppiMET already contains -sum(nano - raw).)"""
+    nano_t1 = type1_jet_pt(jets, jets.orig_pt)
+    new_t1 = type1_jet_pt(jets, new_pt)
+    return corrected_polar_met(nocorrmet.pt, nocorrmet.phi, new_t1, jets.phi, nano_t1)
+
+
 def get_corrected_jets_correctionlib(events, year):
     dataset = events.metadata["dataset"]
     is_mc = hasattr(events, "genWeight")
@@ -385,12 +421,39 @@ def get_corrected_jets_correctionlib(events, year):
     met_field_key = "PuppiMET" if int(get_nano_version(year)) >= 12 else "MET"
     nocorrmet = events[met_field_key]
     met = copy.copy(nocorrmet)
-    metinfo = [nocorrmet.pt, nocorrmet.phi, jets.pt, jets.phi, jets.pt_raw]
+    # PuppiMET in NanoAOD is ALREADY Type-1 corrected with the NanoAOD JECs, so it is re-corrected with the DIFFERENCE
+    # between the new jets and the NanoAOD-corrected jets (jets.orig_pt), not with respect to the raw jets (HEAD double
+    # counted). Sign: MET_new = MET - sum(new - nano) (see type1_corrected_met; the 2026-10-06 version had the sign flipped).
+    # FIX 2026-11-04 (P0-5): only jets passing the Type-1 selection enter the sum (type1_corrected_met)
+    _t1 = type1_corrected_met(nocorrmet, jets, jets.pt)
     met["pt"], met["phi"] = (
-        ak.values_astype(corrected_polar_met(*metinfo).pt, np.float32),
-        ak.values_astype(corrected_polar_met(*metinfo).phi, np.float32),
+        ak.values_astype(_t1.pt, np.float32),
+        ak.values_astype(_t1.phi, np.float32),
     )
     met["orig_pt"], met["orig_phi"] = nocorrmet["pt"], nocorrmet["phi"]
+    # FIX 2026-10-01: attach the MET unclustered-energy variation in the CORRECTIONLIB path
+    # (used for Run 3). The Aug-11 fix only patched get_corrected_jets_coffea, so the
+    # CMS_met_unclustered shift never fired for 2022/2023. NanoAODv12 PuppiMET carries
+    # ptUnclustered{Up,Down}/phiUnclustered{Up,Down}; apply their DIFFERENCE w.r.t. the
+    # stored PuppiMET as a vector shift on top of the re-corrected nominal MET, so the
+    # new JECs are kept and only the unclustered component moves.
+    if "ptUnclusteredUp" in nocorrmet.fields:
+        _px0 = nocorrmet.pt * np.cos(nocorrmet.phi)
+        _py0 = nocorrmet.pt * np.sin(nocorrmet.phi)
+        _pxn = met["pt"] * np.cos(met["phi"])
+        _pyn = met["pt"] * np.sin(met["phi"])
+        _unc = {}
+        for _dirn, _suf in (("up", "Up"), ("down", "Down")):
+            _ptv, _phv = nocorrmet[f"ptUnclustered{_suf}"], nocorrmet[f"phiUnclustered{_suf}"]
+            _px = _pxn + (_ptv * np.cos(_phv) - _px0)
+            _py = _pyn + (_ptv * np.sin(_phv) - _py0)
+            _v = copy.copy(met)
+            _v["pt"] = ak.values_astype(np.hypot(_px, _py), np.float32)
+            _v["phi"] = ak.values_astype(np.arctan2(_py, _px), np.float32)
+            _unc[_dirn] = _v
+        met["MET_UnclusteredEnergy"] = ak.zip(
+            {"up": _unc["up"], "down": _unc["down"]}, depth_limit=1
+        )
 
     # JEC variations
     if is_mc:
@@ -411,20 +474,9 @@ def get_corrected_jets_correctionlib(events, year):
                 jets["mass"] * (1 + fac * jesunc),
                 np.float32,
             )
-            unc_met[f"JES_jes{var}"]["pt"] = corrected_polar_met(
-                nocorrmet.pt,
-                nocorrmet.phi,
-                unc_jets[f"JES_jes{var}"]["pt"],
-                jets.phi,
-                jets.pt_raw,
-            ).pt
-            unc_met[f"JES_jes{var}"]["phi"] = corrected_polar_met(
-                nocorrmet.pt,
-                nocorrmet.phi,
-                unc_jets[f"JES_jes{var}"]["pt"],
-                jets.phi,
-                jets.pt_raw,
-            ).phi
+            _t1 = type1_corrected_met(nocorrmet, jets, unc_jets[f"JES_jes{var}"]["pt"])
+            unc_met[f"JES_jes{var}"]["pt"] = _t1.pt
+            unc_met[f"JES_jes{var}"]["phi"] = _t1.phi
 
             jer_sf_input_var = get_corr_inputs(j, jer_sf, var)
 
@@ -441,7 +493,16 @@ def get_corrected_jets_correctionlib(events, year):
             else:
                 unc_jets[f"JER{var}"] = copy.copy(nocorrjet)
                 unc_met[f"JER{var}"] = copy.copy(nocorrmet)
-                j["JERSF"] = jer_sf.evaluate(*jer_sf_input_var)
+                if any("systematic" in i.name for i in jer_sf.inputs):
+                    j["JERSF"] = jer_sf.evaluate(*jer_sf_input_var)
+                else:
+                    # JME JSONs since 2026-06-05 split JER into ScaleFactor (nominal only) and an
+                    # absolute SFUncertainty; the old systematic=up/down input no longer exists, so
+                    # without this the JER variations silently equal the nominal
+                    jer_sfunc = cset[f"{jrname}_SFUncertainty_AK4PFPuppi"]
+                    _unc = jer_sfunc.evaluate(*get_corr_inputs(j, jer_sfunc))
+                    _nom = jer_sf.evaluate(*get_corr_inputs(j, jer_sf))
+                    j["JERSF"] = _nom + _unc if var == "up" else _nom - _unc
                 jer_smear_input_var = get_corr_inputs(j, sf_jersmear)
                 corrFactor_var = jec_flat_corr_factor * sf_jersmear.evaluate(
                     *jer_smear_input_var
@@ -456,20 +517,9 @@ def get_corrected_jets_correctionlib(events, year):
                     nocorrjet["mass_raw"] * corrFactor_var,
                     np.float32,
                 )
-                unc_met[f"JER{var}"]["pt"] = corrected_polar_met(
-                    nocorrmet.pt,
-                    nocorrmet.phi,
-                    unc_jets[f"JER{var}"]["pt"],
-                    jets.phi,
-                    jets.pt_raw,
-                ).pt
-                unc_met[f"JER{var}"]["phi"] = corrected_polar_met(
-                    nocorrmet.pt,
-                    nocorrmet.phi,
-                    unc_jets[f"JER{var}"]["pt"],
-                    jets.phi,
-                    jets.pt_raw,
-                ).phi
+                _t1 = type1_corrected_met(nocorrmet, jets, unc_jets[f"JER{var}"]["pt"])
+                unc_met[f"JER{var}"]["pt"] = _t1.pt
+                unc_met[f"JER{var}"]["phi"] = _t1.phi
 
         jets["JES_jes"] = ak.zip(
             {

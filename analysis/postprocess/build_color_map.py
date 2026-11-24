@@ -21,7 +21,9 @@ def color_generator(base_colors=None, used_colors=None, cmap_name="tab20"):
     i = 0
     while True:
         c = to_hex(cmap(i % cmap.N))
-        if c.lower() not in used_colors:
+        # FIX 2026-10-05: once every cmap colour is used, the old loop never yielded again (infinite loop,
+        # hung every --plot run after new processes were added). After one full pass, allow reuse.
+        if c.lower() not in used_colors or i >= cmap.N:
             used_colors.add(c.lower())
             yield c
         i += 1

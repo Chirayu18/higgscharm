@@ -3,7 +3,7 @@ import numpy as np
 import awkward as ak
 import correctionlib
 from pathlib import Path
-from random import random
+from analysis.corrections.event_rng import object_uniforms
 from scipy.special import erfinv, erf
 from analysis.corrections.met import update_met
 from analysis.corrections.correctionlib_files import correction_files
@@ -109,7 +109,7 @@ class CrystallBall:
         return result
 
 
-def get_rndm(eta, nL, cset, nested=False):
+def get_rndm(eta, nL, cset, nested=False, uniforms=None):
     # obtain parameters from correctionlib
     if nested:
         eta_f, nL_f, nmuons = ak.flatten(eta), ak.flatten(nL), ak.num(nL)
@@ -122,7 +122,13 @@ def get_rndm(eta, nL, cset, nested=False):
     alpha_f = cset.get("cb_params").evaluate(abs(eta_f), nL_f, 3)
 
     # get random number following the CB
-    rndm_f = [random() for i in nmuons for j in range(int(i))]
+    # 2026-11-10: per-muon reproducible uniforms (event_rng) replace the unseeded
+    # random.random(); they must be supplied, one per muon, in flattened order.
+    if uniforms is None:
+        raise ValueError("get_rndm needs per-muon uniforms (analysis.corrections.event_rng)")
+    rndm_f = np.asarray(uniforms, dtype=np.float64)
+    if len(rndm_f) != int(np.sum(ak.to_numpy(nmuons))):
+        raise ValueError("get_rndm: one uniform per muon is required")
 
     cb_f = CrystallBall(mean_f, sigma_f, alpha_f, n_f)
 
@@ -228,7 +234,7 @@ def filter_boundaries(pt_corr, pt, nested):
     return pt_corr
 
 
-def pt_resol(pt, eta, nL, cset, nested=False):
+def pt_resol(pt, eta, nL, cset, nested=False, uniforms=None):
     """ "
     Function for the calculation of the resolution correction
     Input:
@@ -239,7 +245,7 @@ def pt_resol(pt, eta, nL, cset, nested=False):
 
     This function should only be applied to reco muons in MC!
     """
-    rndm = get_rndm(eta, nL, cset, nested)
+    rndm = get_rndm(eta, nL, cset, nested, uniforms=uniforms)
     std = get_std(pt, eta, nL, cset, nested)
     k = get_k(eta, "nom", cset, nested)
 
@@ -422,6 +428,7 @@ def apply_muon_ss_corrections_run3(
             muons.nTrackerLayers,
             cset,
             nested=True,
+            uniforms=object_uniforms(events, "Muon", "muon_resolution"),
         )
     else:
         # Data: only scale correction to gen Z peak

@@ -3,6 +3,7 @@ import numpy as np
 import awkward as ak
 from pathlib import Path
 from analysis.corrections.met import update_met
+from analysis.corrections.event_rng import object_normals
 from analysis.corrections.correctionlib_files import correction_files
 
 
@@ -40,8 +41,10 @@ def apply_electron_ss_corrections(
     if hasattr(events, "genWeight"):
         # for MC, we apply the smearing correction
         smear = cset["SmearAndSyst"].evaluate("smear", pt, r9, sceta)
-        rng = np.random.default_rng(seed=42)
-        random_numbers = rng.normal(loc=0.0, scale=1.0, size=len(pt))
+        # 2026-11-10: per-electron reproducible normals (event_rng) replace a
+        # per-chunk seed=42 stream, which depended on chunk boundaries.
+        random_numbers = object_normals(events, "Electron", "electron_smearing")
+        assert len(random_numbers) == len(pt)
         smearing = 1 + smear * random_numbers
         pt_corrected = pt * smearing
     else:
@@ -62,8 +65,9 @@ def apply_electron_ss_corrections(
         if hasattr(events, "genWeight"):
             # Obtain the uncertainty on the smearing width using MC original variables (pt, r9, and ScEta).
             unc_smear = cset["SmearAndSyst"].evaluate("smear", pt, r9, sceta)
-            smear_up = cset["SmearAndSyst"].evaluate("smear", pt, r9, sceta)
-            smear_down = cset["SmearAndSyst"].evaluate("smear", pt, r9, sceta)
+            # FIX 2026-10-06: these evaluated the NOMINAL "smear" key, so CMS_res_e Up == Down == nominal
+            smear_up = cset["SmearAndSyst"].evaluate("smear_up", pt, r9, sceta)
+            smear_down = np.maximum(cset["SmearAndSyst"].evaluate("smear_down", pt, r9, sceta), 0.0)
             # In 2022, the "smear_down" variation can lead to negative smearing width in some cases, which is unphysical.
             # Therefore, we use max(smear - unc_smear, 0) to ensure the smearing width is non-negative.
             smearing_up = 1 + smear_up * random_numbers

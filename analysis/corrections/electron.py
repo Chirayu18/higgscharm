@@ -81,6 +81,64 @@ class ElectronWeights:
                 weight=nominal_weights,
             )
 
+    # 2026-11-05 (tvl/MVA port): retrained ttH lepton-MVA working-point SFs from the HWW/latinos electron JSON
+    PROMPTMVA_SF_NAMES = {
+        ("ttHMVA_Run3", "Medium"): "cut_MediumID_tthMVA_Run3",
+        ("ttHMVA_HWW", "Medium"): "cut_MediumID_tthMVA_HWW",
+        ("ttHMVA_Run3", "wp90iso"): "cut_mvaWinter22V2Iso_WP90_tthMVA_Run3",
+        ("ttHMVA_HWW", "wp90iso"): "cut_mvaWinter22V2Iso_WP90_tthMVA_HWW",
+    }
+
+    def add_promptMVA_weights(self, id_wp, promptMVA_wp):
+        """Nuisance CMS_eff_e_promptMVA_<year>. Run-3 nanoAODv12 eras 2022-2023 only."""
+        if self.nano_version != "12":
+            raise ValueError(f"electron promptMVA SFs exist for nanoAODv12 (2022-2023) only, got v{self.nano_version}")
+        nominal_weights = self.get_promptMVA_weights_run3("sf", id_wp, promptMVA_wp)
+        if self.shift is None:
+            self.weights.add(
+                name=f"CMS_eff_e_promptMVA_{self.year[:4]}",
+                weight=nominal_weights,
+                weightUp=self.get_promptMVA_weights_run3("sfup", id_wp, promptMVA_wp),
+                weightDown=self.get_promptMVA_weights_run3("sfdown", id_wp, promptMVA_wp),
+            )
+        else:
+            self.weights.add(
+                name=f"CMS_eff_e_promptMVA_{self.year[:4]}",
+                weight=nominal_weights,
+            )
+
+    def get_promptMVA_weights_run3(self, syst, id_wp, promptMVA_wp):
+        """
+        Binning: supercluster eta in [-2.5, 2.5], pt in [10, 200) (flow=error); electrons outside get SF 1.
+        Unlike Thomas's version no phi argument is passed for 2023 (these JSONs have no phi input), and the
+        supercluster eta (eta + deltaEtaSC) is used as the JSON's eta input is documented as supercluster eta.
+        """
+        key = (promptMVA_wp, id_wp)
+        if key not in self.PROMPTMVA_SF_NAMES:
+            raise ValueError(f"no electron promptMVA SF for promptMVA/id = {promptMVA_wp}/{id_wp}")
+        if not hasattr(self, "cset_promptMVA"):
+            self.cset_promptMVA = correctionlib.CorrectionSet.from_file(correction_files["electron_HWW"][self.year])
+        sc_eta = self.flat_electrons.eta + self.flat_electrons.deltaEtaSC
+        in_electron_mask = (
+            (self.flat_electrons.pt > 10.0) & (self.flat_electrons.pt < 200.0) & (np.abs(sc_eta) < 2.5)
+        )
+        in_electrons = self.flat_electrons.mask[in_electron_mask]
+        electron_pt = ak.fill_none(in_electrons.pt, 10.0)
+        electron_eta = ak.fill_none(in_electrons.eta + in_electrons.deltaEtaSC, 0.0)
+        year_map = {
+            "2022postEE": "2022Re-recoE+PromptFG",
+            "2022preEE": "2022Re-recoBCD",
+            "2023preBPix": "2023PromptC",
+            "2023postBPix": "2023PromptD",
+        }
+        return unflat_sf(
+            self.cset_promptMVA["Electron-ID-SF"].evaluate(
+                year_map[self.year], syst, self.PROMPTMVA_SF_NAMES[key], electron_eta, electron_pt
+            ),
+            in_electron_mask,
+            self.electrons_counts,
+        )
+
     def add_reco_weights(self, reco_range):
         """
         add electron Reco weights to weights container

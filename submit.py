@@ -1,3 +1,4 @@
+from analysis.processing_modes import add_arguments as add_mode_arguments, forwarded as mode_arguments
 import os
 import json
 import argparse
@@ -76,10 +77,27 @@ if __name__ == "__main__":
         type=str,
         help="User name",
     )
+    parser.add_argument(
+        "--output_location",
+        type=str,
+        default=None,
+        help="explicit parquet output root (overrides --eos/AFS default); e.g. a node-local /tmp dir for smoke tests",
+    )
+    add_mode_arguments(parser)
     args = parser.parse_args()
+    from analysis.processing_modes import validate
+    from analysis.workflows.config import WorkflowConfigBuilder
+    validate(WorkflowConfigBuilder(args.workflow).build_workflow_config(), args.mode, args.folds,
+             args.model_manifest, args.allow_diagnostic_model, year=args.year)
+    if args.mode != "legacy":
+        args.output_format = "parquet" if args.mode in ("train", "legacy_slim") else "coffea"
+    if args.mode == "run" and args.allow_diagnostic_model and getattr(args, "submit", False):
+        parser.error("Diagnostic models are local-test only; cannot submit them")
 
     # set output location (used when --output_format parquet)
-    if args.eos:
+    if args.output_location:
+        output_location = args.output_location.rstrip("/") + "/"
+    elif args.eos:
         output_location = f"root://eosuser.cern.ch//eos/user/{args.user[0]}/{args.user}/higgscharm/outputs/"
     else:
         output_location = (
@@ -97,13 +115,25 @@ if __name__ == "__main__":
             year=args.year,
             output_format=args.output_format,
             output_location=output_location,
+            mode=args.mode, folds=args.folds, model_manifest=args.model_manifest,
+            allow_diagnostic_model=args.allow_diagnostic_model, slim_ntuple=args.slim_ntuple,
         ),
         executor=processor.futures_executor,
         # workers=2 (was 4): each worker holds a NanoAOD chunk in RAM; 4 pushed peak
         # to ~5.9 GB and OOM-truncated heavy samples at the 2-3 GB condor request.
         # 2 roughly halves peak (~3 GB) so jobs fit a modest request; ~2x slower/job.
-        executor_args={"schema": NanoAODSchema, "workers": 2},
+        executor_args={"schema": NanoAODSchema, "workers": 2,
+                       # 2026-10-02: coffea default xrootdtimeout is 60 s; slow-but-alive sites
+                       # exceeded it ("Operation expired") -> ~35% of jobs failed on the first pass.
+                       "xrootdtimeout": 600},
     )
+    if args.mode != "legacy":
+        from analysis.processing_checks import check_input_entries
+        out["execution_checks"] = check_input_entries(partition_fileset, out, args.year)
+    # coffea.util.save does not create directories; make sure the target exists.
+    if not args.output_path:
+        parser.error("--output_path is required to save the job output")
+    Path(args.output_path).mkdir(parents=True, exist_ok=True)
     savepath = f"{args.output_path}/{args.dataset}"
     if args.output_format in ["coffea", "parquet"]:
         save(out, f"{savepath}.coffea")
