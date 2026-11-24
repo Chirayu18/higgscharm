@@ -3,7 +3,8 @@
   "files": [
     {
       "path": "README_HToWW.md",
-      "sha256": "27be704ba7f34ec222570394bfd83e9ad0c07f9651e0320634a346dad3665161"
+      "sha256": "27be704ba7f34ec222570394bfd83e9ad0c07f9651e0320634a346dad3665161",
+      "note": "Source hash before publication-only runbook link; scientific source unchanged."
     },
     {
       "path": "analysis/corrections/correction_manager.py",
