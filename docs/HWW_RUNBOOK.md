@@ -13,7 +13,9 @@ inference or fits. Run from the repository root in bash. Use a fresh output vers
 | `c544605` | First model-independent `legacy_slim` implementation | Superseded for inclusive A/B retention |
 | `8f0454098fc2168a713ab8dac76a0330c9c35955` | Inclusive legacy-slim A/B plus MET edge handling | Ntuples/pilots, not an offline full-systematics scorer |
 
-This documentation branch starts at `8f04540`. The source came from the committed
+This publication is a source-only replay of `8f04540` on the published `hww-analysis`
+base; the original source SHAs are provenance references, not ancestors of this branch.
+The source came from the committed
 lxplus branches, with no uncommitted files imported. The canonical baseline checkout
 is `/afs/cern.ch/user/c/cgupta/higgscharm_thomas/higgscharm_thomas_new/higgscharm`;
 `/eos/user/c/cgupta/higgscharm` is an output root, not that git checkout. The laptop
@@ -22,9 +24,66 @@ as though they reproduce current A/B results; in particular `make_combine_inputs
 and `drive_combine.py` are empty at the inspected baseline.
 
 To reproduce the saved nominal result, make a **separate checkout** at the full
-`5b25295...` SHA. Do not change a shared worker checkout. Newer correction source
+`5b25295...` SHA **from the CERN source repository** (that historical SHA is not
+provided by this source-only GitHub branch). Do not change a shared worker checkout. Newer correction source
 changes invalidate the saved model selection signature, even if a correction is
 opt-in. A model-guard failure is a stop condition; never edit manifest hashes.
+
+## Clone and restore required CERN assets
+
+On lxplus, clone into a new directory and record the published SHA:
+
+```bash
+git clone --branch worker/htoww-publish-source --single-branch https://github.com/Chirayu18/higgscharm.git higgscharm-published
+cd higgscharm-published
+git rev-parse HEAD
+```
+
+Restore omitted model/calibration/test assets from the unchanged CERN source checkout.
+The following checks every byte hash and refuses to overwrite differing local files.
+It does not restore the static-results plotting script. No data processing is started.
+
+```bash
+python3 - <<'PYASSETS'
+import hashlib, json
+from pathlib import Path
+source = Path('/afs/cern.ch/user/c/cgupta/higgscharm_legacy_slim_ab_20261118')
+for asset in json.loads(Path('docs/HWW_EXTERNAL_ASSETS.json').read_text())['excluded_files']:
+    name = asset['path']
+    if name.startswith('scripts/plots/'):
+        continue
+    data = (source / name).read_bytes()
+    if hashlib.sha256(data).hexdigest() != asset['sha256']:
+        raise RuntimeError('Asset hash mismatch: ' + name)
+    target = Path(name)
+    if target.exists():
+        if target.read_bytes() != data:
+            raise RuntimeError('Refusing to overwrite: ' + name)
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open('xb') as output:
+            output.write(data)
+print('Required omitted assets restored with verified hashes')
+PYASSETS
+```
+
+The four actual `fileset_<era>_nanov12_lxplus.json` files are also external: use the
+frozen campaign inventory for a reproduction, or explicitly generate/approve a new
+one. The workflow negrw model path below must be readable. Restored files are local
+runtime dependencies and must not be added to the publication branch.
+
+For the latest model-independent writer, after environment setup below:
+
+```bash
+# Preparation only: choose a new absolute ROOT and verify filesets/proxy/quota first.
+ROOT=/eos/user/c/cgupta/HToWW/new_published_slim_version
+hwwpy runner.py -w hww_legacy_slim_ab -y 2022postEE --mode legacy_slim \
+  --folds 5 --eos --memory 6000 --nfiles 3 --output_root "$ROOT"
+```
+
+This writes job descriptions but does not submit. A deliberate `--submit` addition
+launches Condor jobs; do not use it to duplicate the existing PR #6 campaign. The
+published writer is not yet a complete slim-to-training/cards/limits pipeline.
 
 ## Environment and access
 
