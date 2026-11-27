@@ -14,7 +14,7 @@ inference or fits. Run from the repository root in bash. Use a fresh output vers
 | `8f0454098fc2168a713ab8dac76a0330c9c35955` | Inclusive legacy-slim A/B plus MET edge handling | Ntuples/pilots, not an offline full-systematics scorer |
 | `bf0e75f6c254de3fdbd823afbba02fd79bd2fd7b` | Legacy-slim with one merged SR: Nc-jet channel split removed (decision 2026-11-27) | Same ntuple scope as `8f04540`; feature/selection hashes unchanged |
 
-This publication is a source-only replay of `bf0e75f` (child of `8f04540`) on the published `hww-analysis`
+The publication baseline is a source-only replay of `bf0e75f` (child of `8f04540`) on the published `hww-analysis`
 base; the original source SHAs are provenance references, not ancestors of this branch.
 The source came from the committed
 lxplus branches, with no uncommitted files imported. The canonical baseline checkout
@@ -315,6 +315,22 @@ hDamp alternatives. Do not run its deferred inclusive workflow as TRAIN/RUN.
 All four legacy-slim workflows (`hww_legacy_slim_ab`, `_ab_hdamp`, `_b`, `_hdamp`) define one
 merged `SR_hplusc` plus five argmax CRs; slim trees carry no SR split variable, and
 `--mode legacy_slim` refuses a workflow with `combine.channel_splits`.
+The post-publication no-tag update (2026-11-27) removes the medium c-tag working-point
+cut in all four workflows. The base requires at least one good candidate jet with
+pT > 20 GeV, |eta| < 2.4, tight-lepton-veto jet ID and deltaR(lepton, jet) > 0.4.
+The legacy `cjets` collection name now denotes these untagged good jets; the separate
+`jets` collection still has pT > 30 GeV. Candidate selection remains max ParticleNet
+CvL, now over all good candidate jets. Feature names, candidate-based 2D SF treatment
+and one-hot definitions are retained; no all-jet SF product or new ranking rule is
+introduced by this selection-only update. Calibration provenance remains a separate
+open physics input. These objects and selections are recomputed for each object shift.
+
+The selection signature changes. Existing medium-tagged ntuples/pilots and trained
+models are not acceptance tests or compatible training for this selection. Use a new
+versioned campaign and retrain before scoring; do not reuse the frozen November 18
+campaign or bypass model-signature guards. This update does not submit production,
+implement a slim training reader or add the offline full-systematics scorer.
+
 Use `analysis.stitching.slim_ab.arm_mask`: A keeps all 4FS/no 3FS; B selects the
 complementary GEN masks. Normalize from full preselection sums, not retained rows.
 
@@ -327,7 +343,7 @@ state was not audited here. Evidence and code patch:
 
 The legacy-slim training reader and full-systematics offline scorer are not built in
 this revision. Final tt constraint/correlations, Run 2 cards, external theory/c-tag
-inputs, two-SR closure and negrw closure remain separate work. The candidate
+inputs and negrw closure remain separate work. The candidate
 `prescriptions/legacy_slim.yaml` predates the clarified background-only scale scope;
 do not adopt it unchanged as a final policy. hDamp alternatives cover dilepton tt,
 not every tt decay. Do not imply that prepared MET/hDamp software validates a full
@@ -344,8 +360,11 @@ SHA256s alongside the run; do not copy generated evidence into git.
 
 ## Source-only publication assets
 
-This branch replays existing text source from `bf0e75f` (earlier `8f04540`) on the published
-`hww-analysis` base. `HWW_SOURCE_MANIFEST.json` records source hashes.
+This branch starts from a text-source replay of `bf0e75f` (earlier `8f04540`) on the
+published `hww-analysis` base, with the documented post-publication no-tag update. `HWW_SOURCE_MANIFEST.json` records current hashes and preserves baseline `source_sha256`
+values for the changed workflow files. The no-tag update has not been installed in the
+original CERN checkout. The older `_hdamp` workflow also restores object dependency
+order (leptons before cleaned jets, jets before candidate, MET before transverse mass).
 `HWW_EXTERNAL_ASSETS.json` lists the exact omitted binary/model and large calibration
 payloads with hashes. Restore required calibration/model/test assets from the original
 CERN checkout or an approved CERNBox copy before running; their public redistribution
