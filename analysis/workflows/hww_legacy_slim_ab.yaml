@@ -1053,16 +1053,6 @@ combine:
     CR_st: st
     CR_diboson: diboson
     CR_vjets: vjets
-  channel_splits:
-    SR_hplusc:
-      variable: cjet_multiplicity
-      bins:
-        SR_hplusc_1cj:
-        - 1
-        - 2
-        SR_hplusc_2cj:
-        - 2
-        - null
   process_map:
     hplusc:
     - H+c

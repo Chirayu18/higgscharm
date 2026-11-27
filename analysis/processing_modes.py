@@ -40,6 +40,10 @@ def validate(config, mode, folds, manifest=None, diagnostic=False, year=None):
     if mode in ('train', 'legacy_slim'):
         if manifest:
             raise ValueError(f'{mode} does not score a model; do not pass --model_manifest')
+        if mode == 'legacy_slim' and (config.combine or {}).get('channel_splits'):
+            # Single-SR decision (Chirayu, 2026-11-27): slim trees do not carry split
+            # variables, so a split here could never be built offline.
+            raise ValueError('legacy_slim builds one merged SR; remove combine.channel_splits')
         return None
     if not manifest:
         raise ValueError('RUN requires --model_manifest; no fallback to the old v11 model')

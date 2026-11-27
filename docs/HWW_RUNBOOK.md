@@ -12,8 +12,9 @@ inference or fits. Run from the repository root in bash. Use a fresh output vers
 | `efd7030162128c65b922ff47054400107e16ad17` | hDamp/MET/card-policy preparation on `hww-analysis` | Not a completed full-systematics result |
 | `c544605` | First model-independent `legacy_slim` implementation | Superseded for inclusive A/B retention |
 | `8f0454098fc2168a713ab8dac76a0330c9c35955` | Inclusive legacy-slim A/B plus MET edge handling | Ntuples/pilots, not an offline full-systematics scorer |
+| `bf0e75f6c254de3fdbd823afbba02fd79bd2fd7b` | Legacy-slim with one merged SR: Nc-jet channel split removed (decision 2026-11-27) | Same ntuple scope as `8f04540`; feature/selection hashes unchanged |
 
-This publication is a source-only replay of `8f04540` on the published `hww-analysis`
+This publication is a source-only replay of `bf0e75f` (child of `8f04540`) on the published `hww-analysis`
 base; the original source SHAs are provenance references, not ancestors of this branch.
 The source came from the committed
 lxplus branches, with no uncommitted files imported. The canonical baseline checkout
@@ -287,7 +288,7 @@ Expected artifacts: `datacard.txt`, `templates.root`, `template_policy.json`,
 `nominal_accumulator.coffea`, plus `rate_systematics/{datacard.txt,templates.root,template_policy.json}`.
 Readback must show finite values/variances, nominal equality across the two card
 variants, background-only Asimov data, retained autoMCStats and configured free tt rate.
-The old TRAIN schema needs `--merge_channel_splits`; it cannot prove two-SR closure.
+The old TRAIN schema needs `--merge_channel_splits`. The analysis now uses one merged SR (decision 2026-11-27), so this matches the legacy-slim layout.
 A uses its A workflow/input/model paths, not B's manifest.
 
 For an expected limit, in the separate established CMSSW runtime and a new fit directory:
@@ -306,11 +307,14 @@ are central statistical/rate checks, not full-systematics or a stitching-only ga
 
 ## Inclusive legacy-slim route and limits
 
-At `8f04540`, `runner.py -w hww_legacy_slim_ab -y 2022postEE --mode legacy_slim
+At `bf0e75f`, `runner.py -w hww_legacy_slim_ab -y 2022postEE --mode legacy_slim
 --folds 5 --eos --memory 6000 --nfiles 3 --output_root <NEW_ABSOLUTE_ROOT>` prepares
 model-independent shifted trees. The spelling is `legacy_slim`; `--slim_ntuple`
 does not activate this mode. The separate `hww_legacy_slim_ab_hdamp` workflow carries
 hDamp alternatives. Do not run its deferred inclusive workflow as TRAIN/RUN.
+All four legacy-slim workflows (`hww_legacy_slim_ab`, `_ab_hdamp`, `_b`, `_hdamp`) define one
+merged `SR_hplusc` plus five argmax CRs; slim trees carry no SR split variable, and
+`--mode legacy_slim` refuses a workflow with `combine.channel_splits`.
 Use `analysis.stitching.slim_ab.arm_mask`: A keeps all 4FS/no 3FS; B selects the
 complementary GEN masks. Normalize from full preselection sums, not retained rows.
 
@@ -340,7 +344,7 @@ SHA256s alongside the run; do not copy generated evidence into git.
 
 ## Source-only publication assets
 
-This branch replays existing text source from `8f04540` on the published
+This branch replays existing text source from `bf0e75f` (earlier `8f04540`) on the published
 `hww-analysis` base. `HWW_SOURCE_MANIFEST.json` records source hashes.
 `HWW_EXTERNAL_ASSETS.json` lists the exact omitted binary/model and large calibration
 payloads with hashes. Restore required calibration/model/test assets from the original

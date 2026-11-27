@@ -371,11 +371,6 @@ class BaseProcessor(processor.ProcessorABC):
             if self.mode in ("run", "legacy_slim") and shift is None and self.is_mc:
                 arrays.update({"weight_" + v: weights.weight(v) for v in sorted(weights.variations)})
             if self.mode == "legacy_slim":
-                # These are needed for the final Nc-jet SR split, even though
-                # they are not classifier inputs. Keep them on every shift.
-                from analysis.features.hww import scalar
-                arrays.update({v: scalar(variables[v], dtype=np.float64)
-                               for v in split_variables(self.workflow_config.combine)})
                 if self._routeb is not None and self._routeb.defer_selection and self._routeb.scheme_of(sample):
                     arrays["gen_routeb_cjet_multiplicity"] = np.asarray(ak.to_numpy(events.gen_routeb_cjet_multiplicity), dtype=np.int64)
                     arrays["routeb_keep"] = np.asarray(ak.to_numpy(events.routeb_keep), dtype=np.bool_)

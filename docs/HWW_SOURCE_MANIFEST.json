@@ -1,5 +1,5 @@
 {
-  "source_commit": "8f0454098fc2168a713ab8dac76a0330c9c35955",
+  "source_commit": "bf0e75f6c254de3fdbd823afbba02fd79bd2fd7b",
   "files": [
     {
       "path": "README_HToWW.md",
@@ -204,11 +204,11 @@
     },
     {
       "path": "analysis/processing_modes.py",
-      "sha256": "71eef108db99df9034688c9937118b6bc78328c555ccd47241c55a755206246c"
+      "sha256": "9bf05d56bbe07faf5a078aa6af709590a7e29ae473f33687e82019ef22e4fe21"
     },
     {
       "path": "analysis/processors/base.py",
-      "sha256": "09aa08632d8f05e6df26ebb34c67b7fca3146b0f1ea09f1761f220bae4b53c21"
+      "sha256": "8c972a06cd4c45e31b585526158a5e47fcb5cc1744cdc62e30c92dc6c666f539"
     },
     {
       "path": "analysis/selections/object_selections.py",
@@ -324,19 +324,19 @@
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_ab.yaml",
-      "sha256": "0419d51086b4256ab2726457326b37d9574ecda99eaae955da1e0565d2a312d5"
+      "sha256": "ed9e3e5e44a4219fa8e54f45dc6c9853008cc6cc72b6d4ed9c6a65b9d99fac6e"
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_ab_hdamp.yaml",
-      "sha256": "9741ec64b69b517ccc845d0d0f30896671579614a552b0265af4f93ec55fd480"
+      "sha256": "c4544cf334296869aa558ed0e58cb8d2ae33aa4c7a6d5beb68a18da285142370"
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_b.yaml",
-      "sha256": "68ab65fe6c58587d5ee5836c3c35ae39dec3c197b329e60cf6caa25f37644cb5"
+      "sha256": "d6b780cdf3481eefb7a86879c738fdcb31c37a2300980b03e5931e852c998b39"
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_hdamp.yaml",
-      "sha256": "672d45fe50c430d90fc007be66eb3b4c12ef5bed667fd764410feb830db4988f"
+      "sha256": "a0c4136f65c2cd3056562dc8243be80a95bc739d3a6cef2514825e6f58674cc0"
     },
     {
       "path": "analysis/workflows/hww_routeb_3fs4fs.yaml",
@@ -512,7 +512,7 @@
     },
     {
       "path": "tests/test_legacy_slim.py",
-      "sha256": "62ae2935500e1f1b4dde83460b7ab4b6f98ed304b9ea39c2f65dcfc0d0310898"
+      "sha256": "d47d2929ffcd0a48fe99900478e848181167791c83a8ccdb8cb22622bebc4178"
     },
     {
       "path": "tests/test_legacy_slim_preparation.py",
