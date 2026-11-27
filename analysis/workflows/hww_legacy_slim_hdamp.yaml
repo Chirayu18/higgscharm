@@ -165,7 +165,7 @@ event_selection:
     - met_45
     - one_ll_pair
     - one_muon_one_electron
-    - atleast_one_cjet
+    - atleast_one_goodjet
   hlt_paths:
     EGamma:
     - SingleEle
@@ -174,10 +174,9 @@ event_selection:
     MuonEG:
     - MuEle
   selections:
-    atleast_one_cjet: ak.num(objects['cjets']) > 0
+    atleast_one_goodjet: ak.num(objects['cjets']) > 0
     atleast_one_goodvertex: events.PV.npvsGood > 0
     atleast_one_jet: ak.num(objects['jets']) > 0
-    atleast_two_cjets: ak.num(objects['cjets']) > 1
     dilepton_mass_signal: ak.all((objects["ll_pair"].l1 + objects["ll_pair"].l2).mass
       <= 72, axis=1)
     dilepton_mass_top_CR: ak.all((objects["ll_pair"].l1 + objects["ll_pair"].l2).mass
@@ -244,7 +243,7 @@ histogram_config:
       type: Variable
     cjet_multiplicity:
       expression: ak.num(objects['cjets'])
-      label: c-jets multiplicity
+      label: Good candidate jets multiplicity (no c-tag cut)
       start: 0
       stop: 14
       type: Integer
@@ -1055,20 +1054,14 @@ negrw:
   - WtoLNu_2Jets_2J
   model: /afs/cern.ch/user/c/cgupta/negrw_model/negrw_models_v2_20261112.joblib
 object_selection:
-  candidate_cjet:
-    field: select_candidate_cjet
-  cjets:
+  muons:
     cuts:
-    - events.Jet.pt > 20
-    - np.abs(events.Jet.eta) < 2.4
-    - working_points.jet_id(events, year, 'tightlepveto')
-    - working_points.jet_ctagging(events, 'medium', year)
-    - delta_r_higher(events.Jet, objects['leptons'], 0.4)
-    field: events.Jet
-  delta_R:
-    field: select_delta_R
-  delta_phi:
-    field: select_delta_phi
+    - events.Muon.pt > 10
+    - np.abs(events.Muon.eta) < 2.4
+    - working_points.muon_id(events, 'tight_HWW')
+    - working_points.muon_iso(events, 'tight_HWW')
+    - working_points.muon_promptMVA(events, year, 'tight_HWW')
+    field: events.Muon
   electrons:
     cuts:
     - events.Electron.pt > 10
@@ -1077,19 +1070,6 @@ object_selection:
     - working_points.electron_promptMVA(events, year, 'ttHMVA_Run3')
     - delta_r_higher(events.Electron, objects['muons'], 0.4)
     field: events.Electron
-  eventJets:
-    field: events.Jet
-  gen_partons:
-    field: select_gen_partons
-  jets:
-    cuts:
-    - events.Jet.pt > 30
-    - np.abs(events.Jet.eta) < 2.4
-    - working_points.jet_id(events, year, 'tightlepveto')
-    - delta_r_higher(events.Jet, objects['leptons'], 0.4)
-    field: events.Jet
-  leading_jets:
-    field: select_leading_jets
   leptons:
     field: select_hww_leptons
   ll_pair:
@@ -1100,19 +1080,38 @@ object_selection:
     - (objects["ll_pair"].l1.charge + objects["ll_pair"].l2.charge) == 0
     - (objects["ll_pair"].l1 + objects["ll_pair"].l2).mass > 12
     field: select_hww_ll_pair
+  jets:
+    cuts:
+    - events.Jet.pt > 30
+    - np.abs(events.Jet.eta) < 2.4
+    - working_points.jet_id(events, year, 'tightlepveto')
+    - delta_r_higher(events.Jet, objects['leptons'], 0.4)
+    field: events.Jet
+  eventJets:
+    field: events.Jet
+  # Legacy collection name: all good candidate jets, with no c-tag threshold.
+  cjets:
+    cuts:
+    - events.Jet.pt > 20
+    - np.abs(events.Jet.eta) < 2.4
+    - working_points.jet_id(events, year, 'tightlepveto')
+    - delta_r_higher(events.Jet, objects['leptons'], 0.4)
+    field: events.Jet
+  candidate_cjet:
+    field: select_candidate_cjet
+  met:
+    field: events.MET
+  mTll:
+    field: select_hww_mTll
   mTl1:
     field: select_hww_mTl1
   mTl2:
     field: select_hww_mTl2
-  mTll:
-    field: select_hww_mTll
-  met:
-    field: events.MET
-  muons:
-    cuts:
-    - events.Muon.pt > 10
-    - np.abs(events.Muon.eta) < 2.4
-    - working_points.muon_id(events, 'tight_HWW')
-    - working_points.muon_iso(events, 'tight_HWW')
-    - working_points.muon_promptMVA(events, year, 'tight_HWW')
-    field: events.Muon
+  leading_jets:
+    field: select_leading_jets
+  delta_phi:
+    field: select_delta_phi
+  delta_R:
+    field: select_delta_R
+  gen_partons:
+    field: select_gen_partons

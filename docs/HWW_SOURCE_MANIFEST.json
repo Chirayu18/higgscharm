@@ -324,19 +324,27 @@
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_ab.yaml",
-      "sha256": "ed9e3e5e44a4219fa8e54f45dc6c9853008cc6cc72b6d4ed9c6a65b9d99fac6e"
+      "sha256": "9754bdecf58e0a0322a9b205ff022d83e2406567cc4c5006d4ab96aa9408995a",
+      "source_sha256": "ed9e3e5e44a4219fa8e54f45dc6c9853008cc6cc72b6d4ed9c6a65b9d99fac6e",
+      "note": "Post-publication no-c-tag selection update, 2026-11-27; source_sha256 preserves the CERN baseline hash."
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_ab_hdamp.yaml",
-      "sha256": "c4544cf334296869aa558ed0e58cb8d2ae33aa4c7a6d5beb68a18da285142370"
+      "sha256": "4f49bf42e0eea6adfcdad3984ed57346cb74cd0a14f203213c896f66384e3822",
+      "source_sha256": "c4544cf334296869aa558ed0e58cb8d2ae33aa4c7a6d5beb68a18da285142370",
+      "note": "Post-publication no-c-tag selection update, 2026-11-27; source_sha256 preserves the CERN baseline hash."
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_b.yaml",
-      "sha256": "d6b780cdf3481eefb7a86879c738fdcb31c37a2300980b03e5931e852c998b39"
+      "sha256": "58671f237bd8fa5b72066e0d49701d184bbf84b89bfc6b1efb86037be092e0fd",
+      "source_sha256": "d6b780cdf3481eefb7a86879c738fdcb31c37a2300980b03e5931e852c998b39",
+      "note": "Post-publication no-c-tag selection update, 2026-11-27; source_sha256 preserves the CERN baseline hash."
     },
     {
       "path": "analysis/workflows/hww_legacy_slim_hdamp.yaml",
-      "sha256": "a0c4136f65c2cd3056562dc8243be80a95bc739d3a6cef2514825e6f58674cc0"
+      "sha256": "94a34cf452c4db0c0df740a42c50897f6b2ea64adf252e87f7efafe1225a8959",
+      "source_sha256": "a0c4136f65c2cd3056562dc8243be80a95bc739d3a6cef2514825e6f58674cc0",
+      "note": "Post-publication no-c-tag selection update, 2026-11-27; source_sha256 preserves the CERN baseline hash."
     },
     {
       "path": "analysis/workflows/hww_routeb_3fs4fs.yaml",
@@ -561,6 +569,26 @@
     {
       "path": "tests/test_trainrun_blockers.py",
       "sha256": "25496e7d89394dd7c7b0d954ce633b60cf378a766aac478aa1112ff737061938"
+    },
+    {
+      "path": "tests/test_slim_noctag.py",
+      "sha256": "40a926c32a0e1f07ccb19ea88bb247010d28195d41ba28906bb4e332a0c230b0",
+      "note": "New post-publication regression test, not part of the original CERN source replay."
+    }
+  ],
+  "post_publication_updates": [
+    {
+      "date": "2026-11-27",
+      "description": "No reconstructed c-tag threshold; >=1 good candidate jet; retain one SR and existing feature/candidate/SF definitions. Legacy hDamp object ordering corrected.",
+      "files": [
+        "analysis/workflows/hww_legacy_slim_ab.yaml",
+        "analysis/workflows/hww_legacy_slim_ab_hdamp.yaml",
+        "analysis/workflows/hww_legacy_slim_b.yaml",
+        "analysis/workflows/hww_legacy_slim_hdamp.yaml"
+      ],
+      "tests": [
+        "tests/test_slim_noctag.py"
+      ]
     }
   ]
 }

@@ -71,13 +71,13 @@ object_selection:
     - delta_r_higher(events.Jet, objects['leptons'], 0.4)
   eventJets:
     field: events.Jet
+  # Legacy collection name: all good candidate jets, with no c-tag threshold.
   cjets:
     field: events.Jet
     cuts:
     - events.Jet.pt > 20
     - np.abs(events.Jet.eta) < 2.4
     - working_points.jet_id(events, year, 'tightlepveto')
-    - working_points.jet_ctagging(events, 'medium', year)
     - delta_r_higher(events.Jet, objects['leptons'], 0.4)
   candidate_cjet:
     field: select_candidate_cjet
@@ -117,8 +117,7 @@ event_selection:
       == 13)) | ((abs(objects['ll_pair'].l1.pdgId) == 13) & (abs(objects['ll_pair'].l2.pdgId)
       == 11)), axis=1)
     one_ll_pair: ak.num(objects['ll_pair']) == 1
-    atleast_one_cjet: ak.num(objects['cjets']) > 0
-    atleast_two_cjets: ak.num(objects['cjets']) > 1
+    atleast_one_goodjet: ak.num(objects['cjets']) > 0
     zero_jets: ak.num(objects['jets']) == 0
     zero_eventJets: ak.num(objects['eventJets']) == 0
     atleast_one_jet: ak.num(objects['jets']) > 0
@@ -139,7 +138,7 @@ event_selection:
     - met_45
     - one_ll_pair
     - one_muon_one_electron
-    - atleast_one_cjet
+    - atleast_one_goodjet
 corrections:
   object:
   - tthMVA
@@ -559,7 +558,7 @@ histogram_config:
       type: Integer
       start: 0
       stop: 14
-      label: c-jets multiplicity
+      label: Good candidate jets multiplicity (no c-tag cut)
       expression: ak.num(objects['cjets'])
     leadingjet_flavour:
       type: IntCategory
