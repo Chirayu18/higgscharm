@@ -4,8 +4,14 @@ import pathlib
 
 class Paths:
 
-    def __init__(self, eos: bool) -> None:
-        if eos:
+    def __init__(self, eos: bool, root: str = None) -> None:
+        if root:
+            # explicit output root (--output_root); must be absolute and is never guessed
+            root_path = pathlib.Path(root)
+            if not root_path.is_absolute():
+                raise ValueError(f"--output_root must be an absolute path: {root}")
+            self.root_path = root_path
+        elif eos:
             # finds the /eos user directory
             user = os.environ["USER"]
             self.root_path = pathlib.Path(f"/eos/user/{user[0]}/{user}/higgscharm")

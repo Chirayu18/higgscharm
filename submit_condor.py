@@ -1,9 +1,11 @@
+from analysis.processing_modes import add_arguments as add_mode_arguments, forwarded as mode_arguments
 import os
 import json
 import argparse
 import subprocess
 from pathlib import Path
 from analysis.utils import make_output_directory
+from analysis.utils.output_dir_maker import output_workflow_name, parquet_output_location
 from analysis.filesets.utils import divide_list, get_nano_version, fileset_checker
 
 
@@ -102,21 +104,42 @@ if __name__ == "__main__":
         default="2000",
         help="Requested memory (in MB) for the condor job",
     )
+    parser.add_argument(
+        "--output_root",
+        default=None,
+        help="absolute root replacing the default output area for .coffea and parquet outputs "
+             "(<root>/outputs/<workflow>[__<mode>]/<year>/<dataset>). Unset: unchanged default.",
+    )
+    parser.add_argument(
+        "--output_root_url",
+        default=None,
+        help="xrootd URL of --output_root for parquet writes (needed for non-/eos/user EOS roots)",
+    )
+    add_mode_arguments(parser)
     args = parser.parse_args()
+    from analysis.processing_modes import validate
+    from analysis.workflows.config import WorkflowConfigBuilder
+    validate(WorkflowConfigBuilder(args.workflow).build_workflow_config(), args.mode, args.folds,
+             args.model_manifest, args.allow_diagnostic_model, year=args.year)
+    if args.mode != "legacy":
+        args.output_format = "parquet" if args.mode in ("train", "legacy_slim") else "coffea"
+    if args.mode == "run" and args.allow_diagnostic_model and getattr(args, "submit", False):
+        parser.error("Diagnostic models are local-test only; cannot submit them")
 
     # check if the fileset for the given year exists, generate it otherwise
     fileset_checker(samples=[args.dataset], year=args.year)
 
     print(f"Creating {args.workflow}-{args.year}-{args.dataset} condor file")
-    jobname = f"{args.workflow}_{args.dataset}"
+    job_workflow = output_workflow_name(args.workflow, args.mode)
+    jobname = f"{job_workflow}_{args.dataset}"
 
     # make condor and log directories
     condor_dir = Path.cwd() / "condor"
-    job_dir = condor_dir / args.workflow / args.year / args.dataset
+    job_dir = condor_dir / job_workflow / args.year / args.dataset
     if not job_dir.exists():
         job_dir.mkdir(parents=True, exist_ok=True)
 
-    log_dir = condor_dir / "logs" / args.workflow / args.year / args.dataset
+    log_dir = condor_dir / "logs" / job_workflow / args.year / args.dataset
     if not log_dir.exists():
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -147,7 +170,11 @@ if __name__ == "__main__":
         print(*jobnum_list, sep="\n", file=f)
 
     # build and save arguments json
-    args.output_path = make_output_directory(args)
+    # Create the directory the job will actually save into (mode-suffixed for TRAIN/RUN).
+    args.output_path = make_output_directory(args, workflow_name=job_workflow)
+    args.output_location = parquet_output_location(args)
+    if args.model_manifest:
+        args.model_manifest = str(Path(args.model_manifest).resolve())
     args.user = os.environ["USER"]
     args_file = job_dir / "arguments.json"
     with open(args_file, "w") as json_file:
@@ -161,7 +188,8 @@ if __name__ == "__main__":
         for line in condor_template_file:
             line = line.replace("CONDORDIR", str(condor_dir))
             line = line.replace("BASEDIR", str(Path.cwd()))
-            line = line.replace("X509PATH", move_proxy())
+            if "X509PATH" in line:
+                line = line.replace("X509PATH", move_proxy())
             line = line.replace("LOGDIR", str(log_dir))
             line = line.replace("JOBNAME", jobname)
             line = line.replace(

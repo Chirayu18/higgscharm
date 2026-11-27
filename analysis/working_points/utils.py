@@ -2,6 +2,7 @@ import correctionlib
 import awkward as ak
 from analysis.filesets.utils import get_nano_version
 from analysis.corrections.correctionlib_files import correction_files
+from analysis.corrections.cset_cache import load_correction_set
 
 
 def get_ctag_mask(jets: ak.Array, year: str, wp: str):
@@ -27,7 +28,7 @@ def get_ctag_mask(jets: ak.Array, year: str, wp: str):
         "upart": "UParTAK4_wp_values",
     }
 
-    cset = correctionlib.CorrectionSet.from_file(correction_files["ctagging"][year])
+    cset = load_correction_set(correction_files["ctagging"][year])
     ctag_wps_evaluator = cset[tagger_map[tagger]]
     cvsb_wp = ctag_wps_evaluator.evaluate(wp_map[wp], "CvB")
     cvsl_wp = ctag_wps_evaluator.evaluate(wp_map[wp], "CvL")

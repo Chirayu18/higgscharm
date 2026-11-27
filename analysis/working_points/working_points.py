@@ -26,6 +26,10 @@ class WorkingPoints:
             "loose": events.Electron.cutBased == 2,
             "medium": events.Electron.cutBased == 3,
             "tight": events.Electron.cutBased == 4,
+            # 2026-11-05 (tvl/MVA port): inclusive cut-based IDs (Medium = Medium or Tight), as in Thomas's branch.
+            # The lowercase keys above keep their old exclusive meaning.
+            "Medium": events.Electron.cutBased >= 3,
+            "Tight": events.Electron.cutBased >= 4,
         }
 
         # add electron BDT ID wp
@@ -92,6 +96,17 @@ class WorkingPoints:
             "loose": events.Muon.looseId,
             "medium": events.Muon.mediumId,
             "tight": events.Muon.tightId,
+            # 2026-11-05 (tvl/MVA port): HWW tight muon = tightId + |dz| < 0.1 + pT-dependent |dxy| (0.01 / 0.02)
+            "tight_HWW": (
+                (events.Muon.pt > 10)
+                & (np.abs(events.Muon.eta) < 2.4)
+                & events.Muon.tightId
+                & (np.abs(events.Muon.dz) < 0.1)
+                & (
+                    ((events.Muon.pt < 20) & (np.abs(events.Muon.dxy) < 0.01))
+                    | ((events.Muon.pt >= 20) & (np.abs(events.Muon.dxy) < 0.02))
+                )
+            ),
         }
         if wp not in wps:
             raise ValueError(
@@ -117,10 +132,38 @@ class WorkingPoints:
                 else events.Muon.pfRelIso03_all < 0.15
             ),
         }
+        # 2026-11-05 (tvl/MVA port): same cut as tight; separate key because it selects the HWW iso SF
+        wps["tight_HWW"] = wps["tight"]
         if wp not in wps:
             raise ValueError(
                 f"Invalid value {wp} for muon ISO working point. Please specify {list(wps.keys())}"
             )
+        return wps[wp]
+
+    # -----------------------------------------------------------------
+    # Retrained ttH lepton MVA (tvl/MVA port, 2026-11-05). Needs Muon/Electron.tthMVA, attached by the
+    # `tthMVA` object correction (analysis/leptonmva/tth.py); raises AttributeError if that was not enabled.
+    # -----------------------------------------------------------------
+    def muon_promptMVA(self, events, year, wp):
+        wps = {"tight_HWW": events.Muon.tthMVA > 0.67}
+        if wp not in wps:
+            raise ValueError(f"Invalid muon promptMVA working point {wp}. Please specify {list(wps.keys())}")
+        return wps[wp]
+
+    def electron_promptMVA(self, events, year, wp):
+        ele = events.Electron
+        barrel = np.abs(ele.eta) <= 1.479
+        ip = (
+            ((barrel & (np.abs(ele.dxy) < 0.05)) | (~barrel & (np.abs(ele.dxy) < 0.1)))
+            & ((barrel & (np.abs(ele.dz) < 0.1)) | (~barrel & (np.abs(ele.dz) < 0.2)))
+            & (ele.convVeto == True)
+        )
+        wps = {
+            "ttHMVA_Run3": (ele.tthMVA > 0.9) & ip,
+            "ttHMVA_HWW": (((ele.pt <= 20) & (ele.tthMVA > 0.35)) | ((ele.pt > 20) & (ele.tthMVA > 0.9))) & ip,
+        }
+        if wp not in wps:
+            raise ValueError(f"Invalid electron promptMVA working point {wp}. Please specify {list(wps.keys())}")
         return wps[wp]
 
     # -----------------------------------------------------------------

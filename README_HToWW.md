@@ -1,3 +1,6 @@
+Current source-checked instructions: [HWW runbook](docs/HWW_RUNBOOK.md).
+The historical v11 guide below does not describe the completed nominal A/B chain.
+
 # H→WW + charm (H+c) — analysis pipeline
 
 End-to-end guide for the **`hww_combine_2dcat`** workflow: NanoAOD → parquet →
@@ -41,7 +44,7 @@ NanoAOD (DAS/EOS)
    |  runner.py                    condor, ~21 MC+signal datasets
    v
 parquet  outputs/<workflow>/<year>/<dataset>/            nominal + 6 object-shift dirs
-   |  run_postprocess.py --mva
+   |  run_postprocess.py (merges by default)
    v
 merged parquet  .../<var>/                               per-process, sumw_records
    |  scripts/mva/run_inference.py                       6-class MVA scores
@@ -111,7 +114,7 @@ python3 jobs_status.py --workflow hww_combine_2dcat --year 2022postEE --eos
 
 ```bash
 python3 run_postprocess.py --workflow hww_combine_2dcat --year 2022postEE \
-        --postprocess --output_format parquet --mva
+        --postprocess --output_format parquet
 ```
 
 Merges per-dataset parquets into per-process files.
@@ -315,6 +318,123 @@ a free-floating rateParam, not a broken nuisance.
 
 For the real ranking use `combine -M Impacts` (three-stage: `--doInitialFit`,
 `--doFits`, `-o impacts.json`).
+
+---
+
+---
+
+## 8. Diagnostics and presentation plots
+
+Four helper scripts cover the "what changed and why" questions that come up after
+every card rebuild. All are safe to re-run — none of them writes into the analysis
+outputs.
+
+### 8.1 `scripts/combine/freeze_scan.sh` — nuisance impact by freezing
+
+```bash
+cd /eos/user/c/cgupta/higgscharm/outputs/combine
+text2workspace.py v11_hplusc_2dcat.txt -o ws.root
+
+scripts/combine/freeze_scan.sh ws.root quick     # nominal + autoMCStats + stat-only
+scripts/combine/freeze_scan.sh ws.root single    # one nuisance at a time (default)
+scripts/combine/freeze_scan.sh ws.root groups    # AN-23-102 Table 17 groups
+```
+
+`single` prints `<nuisance> <limit>`; the difference from nominal is that nuisance's
+impact. `groups` prints the **16/50/84 band** so you can form
+σ = (84−16)/2 and compute the AN's metric
+
+    |Δr|/r = sqrt(σ_full² − σ_frozen²) / r
+
+which is what makes our numbers directly comparable to AN-23-102 Table 17.
+
+> **Freezing is not orthogonal — do not add the components.** Freezing one group
+> lets the fit re-profile the others; they sum in quadrature to more than σ_full.
+> The AN's own table behaves the same way (their column sums to 100.8%).
+
+### 8.2 `scripts/combine/cmp_cards.py` — did I change what I meant to?
+
+```bash
+python3 scripts/combine/cmp_cards.py \
+    --base outputs/combine/v11_hplusc_2dcat.root.baseline1160_20260814_150636 \
+    --new  outputs/combine/v11_hplusc_2dcat.root
+```
+
+Prints per-channel × per-process **rate** and **n_eff** for both cards, flagging rows
+whose rate moved by more than `--flag-pct` (default 2%).
+
+**This is the script that validates a template change.** A gain confined to one
+process is the signature you want. Broad rate shifts across everything mean the
+inputs changed for some other reason — e.g. a re-merge picking up partitions the
+previous card was missing.
+
+### 8.3 `scripts/combine/nll_scan.py` — Asimov likelihood scan
+
+```bash
+combine -M MultiDimFit ws.root -t -1 --expectSignal 1 --algo grid \
+        --points 60 --rMin 0 --rMax 3000 --mass 120 -n _scan
+python3 scripts/combine/nll_scan.py \
+        --input higgsCombine_scan.MultiDimFit.mH120.root --output nll_scan.png
+```
+
+Plots −2Δln L vs r with the 68% and 95% crossings marked.
+
+### 8.4 `scripts/plots/make_deck_plots.py` — presentation figures
+
+```bash
+python3 scripts/plots/make_deck_plots.py --outdir <img-dir>            # all four
+python3 scripts/plots/make_deck_plots.py --outdir <img-dir> --what freeze
+```
+
+| `--what` | figure | shows |
+|---|---|---|
+| `cascade` | `limit_cascade.png` | expected UL after each analysis change |
+| `freeze` | `freeze_scan_new.png` | nuisance impacts, before vs after a change |
+| `neff` | `vjets_neff.png` | per-process n_eff, and the V+jets gain |
+| `anbreak` | `breakdown_vs_AN_new.png` | our uncertainty breakdown vs AN Table 17 |
+
+The measured numbers live in **dicts at the top of the file** (`CASCADE`,
+`FREEZE_NEW`, `NEFF_SR`, `AN_BREAK`) so the plots regenerate without re-running
+combine. **After a card rebuild: re-run `freeze_scan.sh`, paste the new numbers into
+those dicts, then re-run this script.**
+
+### 8.5 `scripts/combine/prepost.py` — prefit vs postfit templates
+
+```bash
+combine -M FitDiagnostics ws.root -t -1 --expectSignal 1 --mass 120 \
+        --rMin -5000 --rMax 5000 --saveShapes --saveWithUncertainties \
+        --skipBOnlyFit -n _fd
+python3 scripts/combine/prepost.py --input fitDiagnostics_fd.root \
+        --output prepost_SR.png --channel SR_hplusc
+```
+
+Stacked prefit and postfit templates side by side for one channel. On an Asimov
+dataset the two are nearly identical by construction — a visible difference means
+a nuisance is being pulled, which is worth investigating.
+
+### Data / MC comparison
+
+`run_postprocess.py --plot` produces data-vs-MC distributions for every histogram
+axis in the workflow:
+
+```bash
+python3 run_postprocess.py --workflow hww_combine_2dcat --year 2022postEE \
+        --postprocess --plot --output_format parquet
+```
+
+Add `--blind` to suppress data in the signal region.
+
+### Impacts (existing tooling)
+
+```bash
+combineTool.py -M Impacts -d ws.root -m 120 -t -1 --expectSignal 1 \
+    --rMin 0 --rMax 3000 --doInitialFit --robustFit 1
+combineTool.py -M Impacts -d ws.root -m 120 -t -1 --expectSignal 1 \
+    --rMin 0 --rMax 3000 --robustFit 1 --doFits --parallel 8
+combineTool.py -M Impacts -d ws.root -m 120 -t -1 --expectSignal 1 \
+    --rMin 0 --rMax 3000 -o impacts.json
+plotImpacts.py -i impacts.json -o impacts
+```
 
 ---
 

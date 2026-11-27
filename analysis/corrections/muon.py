@@ -103,6 +103,48 @@ class MuonWeights:
                 weight=nominal_weights,
             )
 
+    def add_promptMVA_weights(self, id_wp, iso_wp, promptMVA_wp):
+        """
+        2026-11-05 (tvl/MVA port): SF for the retrained ttH lepton-MVA cut, measured on top of TightID_HWW + TightPFIso
+        (HWW/latinos JSON, NUM_TightID_HWW_TightIso_tthMVA_DEN_TightPFIso). Nuisance CMS_eff_m_promptMVA_<year>.
+        """
+        if (id_wp, iso_wp, promptMVA_wp) != ("tight_HWW", "tight_HWW", "tight_HWW"):
+            raise ValueError(
+                f"muon promptMVA SF only defined for id/iso/promptMVA = tight_HWW, got {id_wp}/{iso_wp}/{promptMVA_wp}"
+            )
+        name = "NUM_TightID_HWW_TightIso_tthMVA_DEN_TightPFIso"
+        nominal_weights = self._get_hww_weights(name, syst="nominal")
+        if self.shift is None:
+            self.weights.add(
+                name=f"CMS_eff_m_promptMVA_{self.year[:4]}",
+                weight=nominal_weights,
+                weightUp=self._get_hww_weights(name, syst="systup"),
+                weightDown=self._get_hww_weights(name, syst="systdown"),
+            )
+        else:
+            self.weights.add(
+                name=f"CMS_eff_m_promptMVA_{self.year[:4]}",
+                weight=nominal_weights,
+            )
+
+    def _get_hww_weights(self, correction_name, syst):
+        """
+        HWW (latinos) muon SFs used with the tight_HWW working points (tvl/MVA port, 2026-11-05).
+        Binned in SIGNED eta [-2.4, 2.4] and pt [10, inf) -- Thomas's ID SF passed |eta|, which only ever read the
+        eta > 0 half of the table; signed eta is used here for ID, iso and promptMVA alike.
+        """
+        if not hasattr(self, "cset_hww"):
+            self.cset_hww = correctionlib.CorrectionSet.from_file(correction_files["muon_HWW"][self.year])
+        in_muon_mask = (self.flat_muons.pt > 10.0) & (np.abs(self.flat_muons.eta) < 2.399)
+        in_muons = self.flat_muons.mask[in_muon_mask]
+        muon_pt = ak.fill_none(in_muons.pt, 10.0)
+        muon_eta = ak.fill_none(in_muons.eta, 0.0)
+        return unflat_sf(
+            self.cset_hww[correction_name].evaluate(muon_eta, muon_pt, syst),
+            in_muon_mask,
+            self.muons_counts,
+        )
+
     def add_trigger_weights(self, id_wp, iso_wp, hlt_paths, dataset):
         """
         add muon iso weights to weights container
@@ -143,6 +185,8 @@ class MuonWeights:
 
     def get_id_weights(self, id_wp, syst):
         """Compute muon ID weights"""
+        if id_wp == "tight_HWW":
+            return self._get_hww_weights("NUM_TightID_HWW_DEN_TrackerMuons", syst)
         id_corrections = {
             "loose": "NUM_LooseID_DEN_TrackerMuons",
             "medium": "NUM_MediumID_DEN_TrackerMuons",
@@ -171,6 +215,10 @@ class MuonWeights:
 
     def get_iso_weights(self, id_wp, iso_wp, syst):
         """Compute muon iso weights"""
+        if iso_wp == "tight_HWW" or id_wp == "tight_HWW":
+            if (id_wp, iso_wp) != ("tight_HWW", "tight_HWW"):
+                raise ValueError(f"HWW muon iso SF needs id=iso=tight_HWW, got {id_wp}/{iso_wp}")
+            return self._get_hww_weights("NUM_TightPFIso_DEN_TightID_HWW", syst)
         iso_corrections = {
             "9": {
                 "loose": {

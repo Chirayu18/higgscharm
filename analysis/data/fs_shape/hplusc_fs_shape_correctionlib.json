@@ -1,0 +1,103 @@
+{
+ "schema_version": 2,
+ "description": "H+c flavour-scheme SHAPE systematic (3FS vs 4FS FxFx at equal inclusive xsec), leading GEN c-hadron pT, T=5 GeV, Run-3 4-era combined. Covers ONLY the scheme difference, not NLO-vs-NNLO normalisation.",
+ "corrections": [
+  {
+   "name": "hplusc_fs_shape",
+   "version": 1,
+   "description": "event weight; nominal = 1",
+   "inputs": [
+    {
+     "name": "syst",
+     "type": "string",
+     "description": "nominal, up (3FS-like), down (mirror)"
+    },
+    {
+     "name": "gen_chad1_pt",
+     "type": "real",
+     "description": "leading weakly-decaying open-charm GEN hadron pT, not from b, |eta|<2.5; -1 if none"
+    }
+   ],
+   "output": {
+    "name": "weight",
+    "type": "real"
+   },
+   "data": {
+    "nodetype": "category",
+    "input": "syst",
+    "content": [
+     {
+      "key": "nominal",
+      "value": 1.0
+     },
+     {
+      "key": "up",
+      "value": {
+       "nodetype": "binning",
+       "input": "gen_chad1_pt",
+       "edges": [
+        -10.0,
+        5.0,
+        10.0,
+        15.0,
+        20.0,
+        30.0,
+        45.0,
+        60.0,
+        80.0,
+        110.0,
+        100000.0
+       ],
+       "content": [
+        0.7756648516965607,
+        1.4096625444720947,
+        1.2308781813967482,
+        1.1062898851147944,
+        1.0521488277824014,
+        1.0470955800466533,
+        1.07724425422596,
+        1.0760552046537897,
+        1.1505406050095321,
+        1.1830310675733624
+       ],
+       "flow": "clamp"
+      }
+     },
+     {
+      "key": "down",
+      "value": {
+       "nodetype": "binning",
+       "input": "gen_chad1_pt",
+       "edges": [
+        -10.0,
+        5.0,
+        10.0,
+        15.0,
+        20.0,
+        30.0,
+        45.0,
+        60.0,
+        80.0,
+        110.0,
+        100000.0
+       ],
+       "content": [
+        1.2243351483034393,
+        0.5903374555279053,
+        0.7691218186032518,
+        0.8937101148852056,
+        0.9478511722175986,
+        0.9529044199533467,
+        0.9227557457740401,
+        0.9239447953462103,
+        0.8494593949904679,
+        0.8169689324266376
+       ],
+       "flow": "clamp"
+      }
+     }
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,1 @@
+"""Frozen event-model registry."""

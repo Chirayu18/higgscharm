@@ -83,11 +83,21 @@ def read_scale(sample, year, base_dir, lumi):
     if era not in ("mc", "signal"):
         return 1.0
     xsec = float(info["xsec"])
+    # FIX 2026-11-04 (P0-2): an MC sample with xsec <= 0 (WminusH_WtoLNu / WplusH_Wto2Q were 0.0 in the era YAMLs) used
+    # to be scaled to zero silently and vanish from the card
+    if not xsec > 0:
+        raise ValueError(
+            f"MC sample {sample!r} ({year}) has xsec={xsec} in the fileset YAML: it would be scaled to zero and "
+            "silently drop out of the card. Set a positive cross section."
+        )
 
     import re as _re
 
     # --- sumw_records (self-normalising) ---
-    rec_dirs = glob.glob(f"{base_dir}/{sample}_*/sumw_records") + glob.glob(
+    # server-side EOS listings: a stale FUSE listing here silently undercounts sumw
+    from analysis.utils.eos_io import glob as eos_glob, read_parquet as eos_read_parquet
+
+    rec_dirs = eos_glob(f"{base_dir}/{sample}_*/sumw_records") + eos_glob(
         f"{base_dir}/{sample}/sumw_records"
     )
     # guard against prefix collisions (DYto2L_2Jets_50 vs ..._50_ext)
@@ -95,10 +105,10 @@ def read_scale(sample, year, base_dir, lumi):
         d for d in rec_dirs
         if _re.fullmatch(rf"{_re.escape(sample)}(_\d+)?", Path(d).parent.name)
     ]
-    rec_files = [f for d in rec_dirs for f in glob.glob(f"{d}/*.parquet")]
+    rec_files = [f for d in rec_dirs for f in eos_glob(f"{d}/*.parquet")]
     sumw = 0.0
     for f in rec_files:
-        sumw += float(sum(pq.read_table(f, columns=["sumw"])["sumw"].to_pylist()))
+        sumw += float(sum(eos_read_parquet(f, columns=["sumw"])["sumw"].to_pylist()))
 
     if sumw <= 0:
         raise ValueError(
@@ -441,6 +451,14 @@ def write_datacard(datacard_path, root_name, combine, proc_hists, edges,
                 row += fmt_cell("-", col_w)
             else:
                 row += fmt_cell("1", col_w)
+        L.append(row.rstrip())
+
+    # Dedicated alternatives replace only their explicit nominal sample subset.
+    from alternative_templates import alternative_spec
+    for name, spec in alternative_spec(combine).items():
+        row = f"{name:<{name_w-6}} shape "
+        for ch, p in columns:
+            row += fmt_cell("1" if p == spec['process'] else "-", col_w)
         L.append(row.rstrip())
 
     # object-shift (kinematic) systematics: MC-wide shape, applies to all processes

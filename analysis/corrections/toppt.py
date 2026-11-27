@@ -41,8 +41,6 @@ def add_toppt_weight(events, weights_container, shift, dataset):
     generator tops get weight 1.0 rather than raising, since our tt samples are
     inclusive and a handful of events can fail the gen-level match.
     """
-    if shift is not None:
-        return
     if not dataset.startswith("TT"):
         return
     if "GenPart" not in events.fields:
@@ -60,11 +58,16 @@ def add_toppt_weight(events, weights_container, shift, dataset):
         weight = ak.where(ak.num(tops, axis=1) == 2, weight, 1.0)
         weight = ak.to_numpy(ak.values_astype(ak.fill_none(weight, 1.0), np.float64))
 
-        weights_container.add(
-            name="top_pt",
-            weight=weight,
-            weightUp=2.0 * (weight - 1.0) + 1.0,
-            weightDown=np.ones_like(weight),
-        )
+        if shift is None:
+            weights_container.add(
+                name="top_pt",
+                weight=weight,
+                weightUp=2.0 * (weight - 1.0) + 1.0,
+                weightDown=np.ones_like(weight),
+            )
+        else:
+            # object-shift trees still need the nominal correction (as pileup.py does);
+            # returning early here left every JES/JER/lepton/MET tt template without it
+            weights_container.add(name="top_pt", weight=weight)
     except Exception as exc:  # noqa: BLE001
         print(f"Failed to build top pT reweight, skipping systematic: {exc}")
